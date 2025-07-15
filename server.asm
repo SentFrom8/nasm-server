@@ -5,7 +5,7 @@ upeer_addrlen: resd 1
 recv_msg: resb 1000
 listener_epoll_event: resb 16
 client_epoll_event: resb 16
-listener_epoll_return: resb 16*256
+epoll_return: resb 16*256
 
 listener_fd: resq 1
 epoll_fd: resq 1
@@ -71,7 +71,7 @@ bind:           xor rbx, rbx                    ; Zero out rbx because the addre
                 mov qword [sockaddr], rbx       
                 mov qword [sockaddr + 8], 0     ; pads the second qword of the sock_addr struct with zeroes
 
-                mov rdi, [listener_fd]
+                mov rdi, qword [listener_fd]
                 mov rax, 49
                 lea rsi, [sockaddr]
                 mov rdx, 16
@@ -84,7 +84,7 @@ bind:           xor rbx, rbx                    ; Zero out rbx because the addre
                 jmp main_socket
 
 listen:         mov rax, 50
-                mov rdi, [listener_fd]
+                mov rdi, qword [listener_fd]
                 mov rsi, 128
                 syscall                         ; sys_listen -> marks the socket as passive, ready to accept connections
 
@@ -94,14 +94,15 @@ epoll:          mov rax, 291
                 mov qword [epoll_fd], rax       ; Save epoll fd
 
 epoll_ctl:      mov rax, 233                            
-                mov rdi, [epoll_fd]             ; epoll fd
+                mov rdi, qword [epoll_fd]             ; epoll fd
                 mov rsi, 1                      ; operation: EPOLL_CTL_ADD
-                mov rdx, [listener_fd]                    ; socket fd
+                mov rdx, qword [listener_fd]                    ; socket fd
                 mov rbx, 0x001                  ; EPOLLIN for incoming connections
                 or rbx, 0x008                   ; EPOLLERR if the fd errors
                 or rbx, 0x010                   ; EPOLLHUP if the client disconnects right away
                 mov qword [listener_epoll_event], rbx           ; Event flag numbers can be found in /usr/include/x86_64-linux-gnu/sys/epoll.h
-                mov qword [listener_epoll_event + 8], [listener_fd]       ; FD in data for later use
+                mov rbx, qword [listener_fd]
+                mov qword [listener_epoll_event + 8], rbx       ; FD in data for later use
                 lea r10, [listener_epoll_event]                 
                 syscall                         ; sys_epoll_ctl -> adds the listener socket to the watch list
                 cmp rax, 0
@@ -112,24 +113,44 @@ epoll_ctl:      mov rax, 233
                 jmp epoll_cls
 
 epoll_wait:     mov rax, 232
-                mov rdi, [epoll_fd]
-                lea rsi, [listener_epoll_return]                ; Buffer for events
+                mov rdi, qword [epoll_fd]
+                lea rsi, [epoll_return]         ; Buffer for events
                 mov rdx, 256                    ; Max simultaneous connections, not total
                 mov r10, 60000                  ; Timeout, set to -1 for permanent
                 syscall
                 mov r12, rax                    ; sys_epoll_wait -> Blocks the thread until there is an EPOLLIN connection or the timeout expires
                 xor rbx, rbx
                 cmp r12, 0
-                jge accept_loop
+                jge client_loop
                 lea rsi, [error_epoll_wait]
                 mov rdx, error_epoll_wait_len
                 call print
                 jmp epoll_cls
 
-accept_loop:    cmp rbx, r12
+client_loop:    cmp rbx, r12                    ; Check if the counter passed the last connection
                 jge epoll_wait
-accept:         mov rax, 43
-                mov rdi, [listener_fd]
+
+client_error:   mov r13, 0x008                  ; Check for errors
+                or r13, 0x010                   ; Check for hangup
+                or r13, 0x2000                  ; Check for half-close
+                mov r14, qword [epoll_return + 16*rbx]
+                and r13, r14
+                cmp r13, 0
+                je accept                       ; If no errors or hangups, continue
+                mov r13, qword [epoll_return + 16*rbx + 8]
+                inc rbx
+                cmp r13, qword [listener_fd]    ; Checks if this is a connecting socket
+                je client_loop                  ; If yes, go next (no need to close)
+                mov rdi, r13
+                mov rax, 3
+                syscall                         ; If not, close the socket
+                jmp client_loop                
+                
+accept:         mov r13, qword [epoll_return + 16*rbx + 8]
+                cmp r13, [listener_fd]
+                jne receive                     ; If not a connecting socket, jump to receive
+                mov rax, 43
+                mov rdi, qword [listener_fd]
                 lea rsi, [usr_sockaddr]
                 mov dword [upeer_addrlen], 16
                 lea rdx, [upeer_addrlen]
@@ -141,12 +162,12 @@ accept:         mov rax, 43
                 lea rsi, [error_accept]
                 mov rdx, error_accept_len
                 call print
-                jmp accept_loop
+                jmp client_loop
 
 epoll_wlist:    mov rax, 233
-                mov rdi, [epoll_fd]
+                mov rdi, qword [epoll_fd]
                 mov rsi, 1
-                mov rdx, [client_fd]
+                mov rdx, qword [client_fd]
                 mov r13, 0x001
                 or r13, 0x004
                 or r13, 0x008
@@ -156,9 +177,22 @@ epoll_wlist:    mov rax, 233
                 mov qword [client_epoll_event + 8], rdx
                 lea r10, [client_epoll_event]
                 syscall
+                cmp rax, 0
+                jge client_loop
 
-receive:        mov rax, 0
-                mov rdi, [client_fd]
+safety_cls:     mov rdi, qword [client_fd]      ; Closes the socket if adding to the epoll watch list fails
+                mov rax, 3
+                syscall
+
+                lea rsi, [error_epoll_ctl]
+                mov rdx, error_epoll_ctl_len
+                call print
+                jmp client_loop 
+
+receive:        test r14, 0x001
+                jz reply
+                mov rax, 0
+                mov rdi, r13
                 lea rsi, [recv_msg]
                 mov rdx, 1000
                 syscall
@@ -168,32 +202,35 @@ receive:        mov rax, 0
                 lea rsi, [error_receive]
                 mov rdx, error_receive_len
                 call print
-                jmp child_sockets                
+                jmp reply
 
 print_req:      lea rsi, [recv_msg]
                 call print
 
-reply:          mov rdi, [client_fd]
+reply:          test r14, 0x004
+                jz child_sock_cls
+                mov rdi, r13
                 mov rax, 1
                 lea rsi, [message]
                 mov rdx, 90
                 syscall
                 cmp rax, 0
-                jge child_sockets
+                jge child_sock_cls
                 lea rsi, [error_write]
                 mov rdx, error_write_len
                 call print
 
-child_sockets:  ; closes the sockets
-                mov rdi, [client_fd]
+child_sock_cls: mov rdi, r13
+                mov rax, 3
+                syscall
+                inc rbx
+                jmp client_loop
+
+epoll_cls:      mov rdi, qword [epoll_fd]
                 mov rax, 3
                 syscall
 
-epoll_cls:      mov rdi, [epoll_fd]
-                mov rax, 3
-                syscall
-
-main_socket:    mov rdi, [listener_fd]
+main_socket:    mov rdi, qword [listener_fd]
                 mov rax, 3
                 syscall
 

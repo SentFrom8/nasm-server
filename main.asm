@@ -2,7 +2,11 @@ section .bss
 sockaddr: resb 16
 usr_sockaddr: resb 16
 upeer_addrlen: resd 1
-recv_msg: resb 1000
+
+global req, req_len
+req: resb 1000
+req_len: resq 1
+
 listener_epoll_event: resb 16
 client_epoll_event: resb 16
 epoll_return: resb 16*256
@@ -40,9 +44,6 @@ error_bind_len equ $ - error_bind
 error_accept db "[ERROR] Accept failed", 10
 error_accept_len equ $ - error_accept
 
-error_receive db "[ERROR] Receive failed", 10
-error_receive_len equ $ - error_receive
-
 error_write db "[ERROR] Write failed", 10
 error_write_len equ $ - error_write
 
@@ -60,7 +61,8 @@ client_epollhup_len equ $ - client_epollhup
 
 
 section .text
-global _start
+global _start, reply, print
+extern handle_req
 
 print:          mov rax, 1
                 mov rdi, 1
@@ -239,7 +241,7 @@ client_cls:     inc rbx
                 jmp client_loop                
                 
 accept:         cmp r13, qword [listener_fd]
-                jne receive                             ; If not a connecting socket, jump to receive
+                jne handle_req                          ; If not a connecting socket, jump to receive
                 mov rax, 43
                 mov rdi, qword [listener_fd]
                 lea rsi, [usr_sockaddr]
@@ -280,23 +282,7 @@ safety_cls:     mov rdi, qword [client_fd]              ; Closes the socket if a
                 call print
                 jmp client_loop 
 
-receive:        test r14, 0x001
-                jz reply
-                mov rax, 0
-                mov rdi, r13
-                lea rsi, [recv_msg]
-                mov rdx, 1000
-                syscall
-                mov rdx, rax
-                cmp rdx, 0
-                jge print_req
-                lea rsi, [error_receive]
-                mov rdx, error_receive_len
-                call print
-                jmp reply
 
-print_req:      lea rsi, [recv_msg]
-                call print
 
 reply:          test r14, 0x004
                 jz child_sock_cls

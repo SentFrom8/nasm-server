@@ -6,38 +6,58 @@ recv_msg: resb 1000
 listener_epoll_event: resb 16
 client_epoll_event: resb 16
 epoll_return: resb 16*256
+home_content: resb 1000
+home_content_len: resq 1
+content_len_buff: resb 10
+content_len_digits: resq 1
+iovec_buff: resb 16*3
+
 
 listener_fd: resq 1
 epoll_fd: resq 1
 client_fd: resq 1
+home_fd: resq 1
 
 section .data
 
-message db "HTTP/1.1 200 OK", 13, 10
-        db "Content-Type: text/plain", 13, 10
-        db "Content-Length: 25", 13, 10, 13, 10
-        db "Hello from the other side", 0
+headers db "HTTP/1.1 200 OK", 13, 10
+        db "Content-Type: text/html", 13, 10
+        db "Content-Length: "
 
-error_socket db "Socket failed", 0
+headers_len equ $ - headers
+
+home_filename db "index.html", 0
+
+server_listening db "[SERVER] Listening on 0.0.0.0:8080", 10
+server_listening_len equ $ - server_listening
+
+error_socket db "[ERROR] Unable to create a socket", 10
 error_socket_len equ $ - error_socket
 
-error_bind db "Bind failed", 0
+error_bind db "[ERROR] Unable to bind socket to 0.0.0.0:8080", 10
 error_bind_len equ $ - error_bind
 
-error_accept db "Accept failed", 0
+error_accept db "[ERROR] Accept failed", 10
 error_accept_len equ $ - error_accept
 
-error_receive db "Receive failed", 0
+error_receive db "[ERROR] Receive failed", 10
 error_receive_len equ $ - error_receive
 
-error_write db "Write failed", 0
+error_write db "[ERROR] Write failed", 10
 error_write_len equ $ - error_write
 
-error_epoll_ctl db "Adding socket fd to epoll failed", 0
-error_epoll_ctl_len equ $ - error_write
+error_epoll_ctl db "[ERROR] Unable to add socket to the epoll watch list", 10
+error_epoll_ctl_len equ $ - error_epoll_ctl
 
-error_epoll_wait db "Epoll wait call failed", 0
+error_epoll_wait db "[ERROR] Epoll wait failed", 10
 error_epoll_wait_len equ $ - error_epoll_wait
+
+error_client_epoll db "[CLIENT] EPOLLERR", 10
+error_client_epoll_len equ $ - error_client_epoll
+
+client_epollhup db "[CLIENT] EPOLLHUP", 10
+client_epollhup_len equ $ - client_epollhup
+
 
 section .text
 global _start
@@ -47,35 +67,91 @@ print:          mov rax, 1
                 syscall
                 ret
 
+
+last_digit:     div r12
+                add rdx, 0x30
+                mov byte [content_len_buff + rbx], dl
+                xor rdx, rdx
+                dec rbx
+                cmp rax, 0
+                jne last_digit
+                ret
+
 ; The server uses an epoll to handle file descriptors
 ; epoll emits an event when an fd is ready for an operation
 
-_start:         mov rax, 41
-                mov rdi, 2                      ; IPv4 family (AF_INET)
-                mov rsi, 1                      ; SOCK_STREAM type
-                or rsi, 0x800                   ; SOCK_NONBLOCK flag
-                xor rdx, rdx                    ; System picks the protocol (TCP for SOCK_STREAM type)
-                syscall                         ; sys_socket -> creates the socket
-                mov qword [listener_fd], rax    ; save socket fd
-                cmp rax, 0                      ; if error, print the error and jump to end
+_start:         mov rax, 2
+                lea rdi, [home_filename]
+                mov rsi, 0
+                mov rdx, 577
+                syscall                                 ; sys_open -> opens the index.html file in read only mode
+                mov qword [home_fd], rax
+
+                mov rdi, rax
+                mov rax, 0
+                lea rsi, [home_content]
+                mov rdx, 1000
+                syscall                                 ; sys_read -> reads the contents of index.html, writing them to home_content buffer
+                mov qword [home_content_len], rax
+
+                mov r12, 10
+                mov rbx, 9
+                mov byte [content_len_buff + rbx], 10
+                dec rbx
+                mov byte [content_len_buff + rbx], 13
+                dec rbx
+                mov byte [content_len_buff + rbx], 10
+                dec rbx
+                mov byte [content_len_buff + rbx], 13
+                dec rbx
+                xor rdx, rdx
+                call last_digit                         ; Converts the length returned from the read syscall to a string and writes it to a buffer
+
+mk_iovec:       lea r12, [headers]
+                mov qword [iovec_buff], r12
+
+                mov r12, headers_len
+                mov qword [iovec_buff + 8], r12
+
+                lea r12, [content_len_buff + rbx + 1]
+                mov qword [iovec_buff + 16], r12
+
+                mov r12, 9
+                sub r12, rbx
+                mov qword [iovec_buff + 24], r12
+
+                lea r12, [home_content]
+                mov qword [iovec_buff + 32], r12
+
+                mov r12, qword [home_content_len]
+                mov qword [iovec_buff + 40], r12
+
+mk_listener:    mov rax, 41
+                mov rdi, 2                              ; IPv4 family (AF_INET)
+                mov rsi, 1                              ; SOCK_STREAM type
+                or rsi, 0x800                           ; SOCK_NONBLOCK flag
+                xor rdx, rdx                            ; System picks the protocol (TCP for SOCK_STREAM type)
+                syscall                                 ; sys_socket -> creates the socket
+                mov qword [listener_fd], rax            ; save socket fd
+                cmp rax, 0                              ; if error, print the error and jump to end
                 jge bind
                 lea rsi, [error_socket]
                 mov rdx, error_socket_len
                 call print
                 jmp end
 
-bind:           xor rbx, rbx                    ; Zero out rbx because the address is 0.0.0.0
-                mov rbx, 0x901F                 ; The bind syscall expects big endian, so the order of bytes in the number 8080 is reversed
-                shl rbx, 16                     ; Move the port by 16 bits, because the first 16 bits are reserved for the family
-                add rbx, 2                      ; Sets the family to AF_INET
+bind:           xor rbx, rbx                            ; Zero out rbx because the address is 0.0.0.0
+                mov rbx, 0x901F                         ; The bind syscall expects big endian, so the order of bytes in the number 8080 is reversed
+                shl rbx, 16                             ; Move the port by 16 bits, because the first 16 bits are reserved for the family
+                add rbx, 2                              ; Sets the family to AF_INET
                 mov qword [sockaddr], rbx       
-                mov qword [sockaddr + 8], 0     ; pads the second qword of the sock_addr struct with zeroes
+                mov qword [sockaddr + 8], 0             ; pads the second qword of the sock_addr struct with zeroes
 
                 mov rdi, qword [listener_fd]
                 mov rax, 49
                 lea rsi, [sockaddr]
                 mov rdx, 16
-                syscall                         ; sys_bind -> binds the socket to the address
+                syscall                                 ; sys_bind -> binds the socket to the address
                 cmp rax, 0
                 jge listen
                 lea rsi, [error_bind]
@@ -86,25 +162,28 @@ bind:           xor rbx, rbx                    ; Zero out rbx because the addre
 listen:         mov rax, 50
                 mov rdi, qword [listener_fd]
                 mov rsi, 128
-                syscall                         ; sys_listen -> marks the socket as passive, ready to accept connections
+                syscall                                 ; sys_listen -> marks the socket as passive, ready to accept connections
+                lea rsi, [server_listening]
+                mov rdx, server_listening_len
+                call print
 
 epoll:          mov rax, 291
                 xor rdi, rdi
-                syscall                         ; sys_epoll_create1 -> creates an epoll
-                mov qword [epoll_fd], rax       ; Save epoll fd
+                syscall                                 ; sys_epoll_create1 -> creates an epoll
+                mov qword [epoll_fd], rax               ; Save epoll fd
 
-epoll_ctl:      mov rax, 233                            
-                mov rdi, qword [epoll_fd]             ; epoll fd
-                mov rsi, 1                      ; operation: EPOLL_CTL_ADD
-                mov rdx, qword [listener_fd]                    ; socket fd
-                mov rbx, 0x001                  ; EPOLLIN for incoming connections
-                or rbx, 0x008                   ; EPOLLERR if the fd errors
-                or rbx, 0x010                   ; EPOLLHUP if the client disconnects right away
+epoll_ctl:      mov rdi, rax                            ; epoll fd
+                mov rax, 233                            
+                mov rsi, 1                              ; operation: EPOLL_CTL_ADD
+                mov rdx, qword [listener_fd]            ; socket fd
+                mov rbx, 0x001                          ; EPOLLIN for incoming connections
+                or rbx, 0x008                           ; EPOLLERR if the fd errors
+                or rbx, 0x010                           ; EPOLLHUP if the client disconnects right away
                 mov qword [listener_epoll_event], rbx           ; Event flag numbers can be found in /usr/include/x86_64-linux-gnu/sys/epoll.h
                 mov rbx, qword [listener_fd]
                 mov qword [listener_epoll_event + 8], rbx       ; FD in data for later use
                 lea r10, [listener_epoll_event]                 
-                syscall                         ; sys_epoll_ctl -> adds the listener socket to the watch list
+                syscall                                 ; sys_epoll_ctl -> adds the listener socket to the watch list
                 cmp rax, 0
                 jge epoll_wait
                 lea rsi, [error_epoll_ctl]
@@ -114,11 +193,11 @@ epoll_ctl:      mov rax, 233
 
 epoll_wait:     mov rax, 232
                 mov rdi, qword [epoll_fd]
-                lea rsi, [epoll_return]         ; Buffer for events
-                mov rdx, 256                    ; Max simultaneous connections, not total
-                mov r10, 60000                  ; Timeout, set to -1 for permanent
+                lea rsi, [epoll_return]                 ; Buffer for events
+                mov rdx, 256                            ; Max simultaneous connections, not total
+                mov r10, 60000                          ; Timeout, set to -1 for permanent
                 syscall
-                mov r12, rax                    ; sys_epoll_wait -> Blocks the thread until there is an EPOLLIN connection or the timeout expires
+                mov r12, rax                            ; sys_epoll_wait -> Blocks the thread until there is an EPOLLIN connection or the timeout expires
                 xor rbx, rbx
                 cmp r12, 0
                 jge client_loop
@@ -127,28 +206,40 @@ epoll_wait:     mov rax, 232
                 call print
                 jmp epoll_cls
 
-client_loop:    cmp rbx, r12                    ; Check if the counter passed the last connection
+client_loop:    cmp rbx, r12                            ; Check if the counter passed the last connection
                 jge epoll_wait
 
-client_error:   mov r13, 0x008                  ; Check for errors
-                or r13, 0x010                   ; Check for hangup
-                or r13, 0x2000                  ; Check for half-close
-                mov r14, qword [epoll_return + 16*rbx]
-                and r13, r14
-                cmp r13, 0
-                je accept                       ; If no errors or hangups, continue
-                mov r13, qword [epoll_return + 16*rbx + 8]
-                inc rbx
-                cmp r13, qword [listener_fd]    ; Checks if this is a connecting socket
-                je client_loop                  ; If yes, go next (no need to close)
+client_error:   mov r15, rbx
+                shl r15, 4
+                mov r13, qword [epoll_return + r15 + 8]
+                mov r14, qword [epoll_return + r15]
+                test r14, 0x008                         ; Check for errors
+                jz client_hup
+                lea rsi, [error_client_epoll]
+                mov rdx, error_client_epoll_len
+                call print
+                jmp client_cls
+
+client_hup:     test r14, 0x010                         ; Check for hangup
+                jnz print_hup
+                test r14, 0x2000                        ; Check for half-close
+                jnz print_hup
+                jz accept
+
+print_hup:      lea rsi, [client_epollhup]
+                mov rdx, client_epollhup_len
+                call print
+
+client_cls:     inc rbx
+                cmp r13, qword [listener_fd]
+                je client_loop
                 mov rdi, r13
                 mov rax, 3
-                syscall                         ; If not, close the socket
+                syscall                                 ; If not, close the socket
                 jmp client_loop                
                 
-accept:         mov r13, qword [epoll_return + 16*rbx + 8]
-                cmp r13, [listener_fd]
-                jne receive                     ; If not a connecting socket, jump to receive
+accept:         cmp r13, qword [listener_fd]
+                jne receive                             ; If not a connecting socket, jump to receive
                 mov rax, 43
                 mov rdi, qword [listener_fd]
                 lea rsi, [usr_sockaddr]
@@ -172,7 +263,7 @@ epoll_wlist:    mov rax, 233
                 or r13, 0x004
                 or r13, 0x008
                 or r13, 0x010
-                or r13, 0x2000                  ; EPOLLRDHUP if the client half-closes
+                or r13, 0x2000                          ; EPOLLRDHUP if the client half-closes
                 mov qword [client_epoll_event], r13
                 mov qword [client_epoll_event + 8], rdx
                 lea r10, [client_epoll_event]
@@ -180,7 +271,7 @@ epoll_wlist:    mov rax, 233
                 cmp rax, 0
                 jge client_loop
 
-safety_cls:     mov rdi, qword [client_fd]      ; Closes the socket if adding to the epoll watch list fails
+safety_cls:     mov rdi, qword [client_fd]              ; Closes the socket if adding to the epoll watch list fails
                 mov rax, 3
                 syscall
 
@@ -209,13 +300,16 @@ print_req:      lea rsi, [recv_msg]
 
 reply:          test r14, 0x004
                 jz child_sock_cls
+
                 mov rdi, r13
-                mov rax, 1
-                lea rsi, [message]
-                mov rdx, 90
-                syscall
+                mov rax, 20
+                lea rsi, [iovec_buff]
+                mov rdx, 3
+                syscall                                 ; sys_writev -> writes an array of buffers (I/O vector)
                 cmp rax, 0
                 jge child_sock_cls
+                inc rbx
+                jge client_loop
                 lea rsi, [error_write]
                 mov rdx, error_write_len
                 call print

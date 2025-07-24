@@ -3,35 +3,16 @@ sockaddr: resb 16
 usr_sockaddr: resb 16
 upeer_addrlen: resd 1
 
-global req, req_len
-req: resb 1000
-req_len: resq 1
-
 listener_epoll_event: resb 16
 client_epoll_event: resb 16
 epoll_return: resb 16*256
-home_content: resb 1000
-home_content_len: resq 1
-content_len_buff: resb 10
-content_len_digits: resq 1
 iovec_buff: resb 16*3
-
 
 listener_fd: resq 1
 epoll_fd: resq 1
 client_fd: resq 1
-home_fd: resq 1
 
 section .data
-
-headers db "HTTP/1.1 200 OK", 13, 10
-        db "Content-Type: text/html", 13, 10
-        db "Content-Length: "
-
-headers_len equ $ - headers
-
-home_filename db "index.html", 0
-
 server_listening db "[SERVER] Listening on 0.0.0.0:8080", 10
 server_listening_len equ $ - server_listening
 
@@ -43,9 +24,6 @@ error_bind_len equ $ - error_bind
 
 error_accept db "[ERROR] Accept failed", 10
 error_accept_len equ $ - error_accept
-
-error_write db "[ERROR] Write failed", 10
-error_write_len equ $ - error_write
 
 error_epoll_ctl db "[ERROR] Unable to add socket to the epoll watch list", 10
 error_epoll_ctl_len equ $ - error_epoll_ctl
@@ -61,7 +39,7 @@ client_epollhup_len equ $ - client_epollhup
 
 
 section .text
-global _start, reply, print
+global _start, print, client_loop, client_cls, child_sock_cls
 extern handle_req
 
 print:          mov rax, 1
@@ -69,66 +47,10 @@ print:          mov rax, 1
                 syscall
                 ret
 
-
-last_digit:     div r12
-                add rdx, 0x30
-                mov byte [content_len_buff + rbx], dl
-                xor rdx, rdx
-                dec rbx
-                cmp rax, 0
-                jne last_digit
-                ret
-
 ; The server uses an epoll to handle file descriptors
 ; epoll emits an event when an fd is ready for an operation
 
-_start:         mov rax, 2
-                lea rdi, [home_filename]
-                mov rsi, 0
-                mov rdx, 577
-                syscall                                 ; sys_open -> opens the index.html file in read only mode
-                mov qword [home_fd], rax
-
-                mov rdi, rax
-                mov rax, 0
-                lea rsi, [home_content]
-                mov rdx, 1000
-                syscall                                 ; sys_read -> reads the contents of index.html, writing them to home_content buffer
-                mov qword [home_content_len], rax
-
-                mov r12, 10
-                mov rbx, 9
-                mov byte [content_len_buff + rbx], 10
-                dec rbx
-                mov byte [content_len_buff + rbx], 13
-                dec rbx
-                mov byte [content_len_buff + rbx], 10
-                dec rbx
-                mov byte [content_len_buff + rbx], 13
-                dec rbx
-                xor rdx, rdx
-                call last_digit                         ; Converts the length returned from the read syscall to a string and writes it to a buffer
-
-mk_iovec:       lea r12, [headers]
-                mov qword [iovec_buff], r12
-
-                mov r12, headers_len
-                mov qword [iovec_buff + 8], r12
-
-                lea r12, [content_len_buff + rbx + 1]
-                mov qword [iovec_buff + 16], r12
-
-                mov r12, 9
-                sub r12, rbx
-                mov qword [iovec_buff + 24], r12
-
-                lea r12, [home_content]
-                mov qword [iovec_buff + 32], r12
-
-                mov r12, qword [home_content_len]
-                mov qword [iovec_buff + 40], r12
-
-mk_listener:    mov rax, 41
+_start:         mov rax, 41
                 mov rdi, 2                              ; IPv4 family (AF_INET)
                 mov rsi, 1                              ; SOCK_STREAM type
                 or rsi, 0x800                           ; SOCK_NONBLOCK flag
@@ -257,10 +179,10 @@ accept:         cmp r13, qword [listener_fd]
                 call print
                 jmp client_loop
 
-epoll_wlist:    mov rax, 233
+epoll_wlist:    mov rdx, rax
+                mov rax, 233
                 mov rdi, qword [epoll_fd]
                 mov rsi, 1
-                mov rdx, qword [client_fd]
                 mov r13, 0x001
                 or r13, 0x004
                 or r13, 0x008
@@ -284,21 +206,21 @@ safety_cls:     mov rdi, qword [client_fd]              ; Closes the socket if a
 
 
 
-reply:          test r14, 0x004
-                jz child_sock_cls
+; reply:          test r14, 0x004
+;                 jz child_sock_cls
 
-                mov rdi, r13
-                mov rax, 20
-                lea rsi, [iovec_buff]
-                mov rdx, 3
-                syscall                                 ; sys_writev -> writes an array of buffers (I/O vector)
-                cmp rax, 0
-                jge child_sock_cls
-                inc rbx
-                jge client_loop
-                lea rsi, [error_write]
-                mov rdx, error_write_len
-                call print
+;                 mov rdi, r13
+;                 mov rax, 20
+;                 lea rsi, [iovec_buff]
+;                 mov rdx, 3
+;                 syscall                                 ; sys_writev -> writes an array of buffers (I/O vector)
+;                 cmp rax, 0
+;                 jge child_sock_cls
+;                 inc rbx
+;                 jge client_loop
+;                 lea rsi, [error_write]
+;                 mov rdx, error_write_len
+;                 call print
 
 child_sock_cls: mov rdi, r13
                 mov rax, 3

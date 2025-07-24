@@ -1,0 +1,23 @@
+span {
+  background: linear-gradient(
+    270deg,
+    #29e910,
+    #7928ca,
+    #2afadf,
+    #e90e20,
+    #29e910
+  ); /* loop back to first color */
+  background-size: 600% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: moveGradient 5s linear infinite;
+}
+
+@keyframes moveGradient {
+  100% {
+    background-position: 0% 50%;
+  }
+  0% {
+    background-position: 100% 50%;
+  }
+}

@@ -1,7 +1,7 @@
 ASM = nasm
 LD = ld
 ASMFLAGS = -felf64
-OBJS = main.o req_handler.o
+OBJS = main.o req_handler.o res_handler.o
 TARGET = server
 
 all: $(TARGET)

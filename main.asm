@@ -37,9 +37,8 @@ error_client_epoll_len equ $ - error_client_epoll
 client_epollhup db "[CLIENT] EPOLLHUP", 10
 client_epollhup_len equ $ - client_epollhup
 
-
 section .text
-global _start, print, client_loop, client_cls, child_sock_cls
+global _start, print, client_loop, client_cls, epoll_wait
 extern handle_req
 
 print:          mov rax, 1
@@ -160,7 +159,7 @@ client_cls:     inc rbx
                 mov rdi, r13
                 mov rax, 3
                 syscall                                 ; If not, close the socket
-                jmp client_loop                
+                jmp client_loop
                 
 accept:         cmp r13, qword [listener_fd]
                 jne handle_req                          ; If not a connecting socket, jump to receive
@@ -184,7 +183,6 @@ epoll_wlist:    mov rdx, rax
                 mov rdi, qword [epoll_fd]
                 mov rsi, 1
                 mov r13, 0x001
-                or r13, 0x004
                 or r13, 0x008
                 or r13, 0x010
                 or r13, 0x2000                          ; EPOLLRDHUP if the client half-closes

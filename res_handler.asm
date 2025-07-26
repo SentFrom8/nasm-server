@@ -1,5 +1,5 @@
 section .bss
-file_content: resb 1000
+file_content: resb 10000
 file_content_len: resq 1
 
 digits_str_buffer: resb 10
@@ -25,7 +25,7 @@ error_write_len equ $ - error_write
 
 section .text
 global handle_res
-extern path_buff, print, client_loop, client_cls, child_sock_cls
+extern connection_status, path_buff, print, epoll_wait, client_loop, client_cls
 
 last_digit:     div r12
                 add rdx, 0x30
@@ -36,26 +36,23 @@ last_digit:     div r12
                 jne last_digit
                 ret
 
-handle_res:     test r14, 0x004
-                jz child_sock_cls
-file_open:      mov rax, 2
+handle_res:     mov rax, 2
                 lea rdi, [path_buff]
                 mov rsi, 0
                 mov rdx, 577
                 syscall                                 ; sys_open -> opens the requested file in read only mode
                 cmp rax, 0
-                jg file_read
+                jge file_read
                 lea rsi, [error_invalid_file]
                 mov rdx, error_invalid_file_len
                 call print
                 jmp client_cls
 
-
 file_read:      mov qword [file_fd], rax
                 mov rdi, rax
                 mov rax, 0
                 lea rsi, [file_content]
-                mov rdx, 1000
+                mov rdx, 10000
                 syscall                                 ; sys_read -> reads the contents of the opened file
                 cmp rax, 0
                 jg print_file

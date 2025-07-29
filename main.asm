@@ -6,7 +6,6 @@ upeer_addrlen: resd 1
 listener_epoll_event: resb 16
 client_epoll_event: resb 16
 epoll_return: resb 16*256
-iovec_buff: resb 16*3
 
 listener_fd: resq 1
 epoll_fd: resq 1

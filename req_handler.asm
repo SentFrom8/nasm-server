@@ -4,6 +4,7 @@ fextension: resb 30
 req_len: resq 1
 path_len: resq 1
 
+global file_extension, file_extension_len
 file_extension: resq 1
 file_extension_len: resq 1
 
@@ -105,8 +106,8 @@ append_home:    cld
 
 finalize_path:  lea rcx, [path_buff + rax]
                 mov byte [rcx], 0
-                sub rcx, r8
-                mov qword [file_extension_len], r8
+                sub rcx, qword [file_extension]
+                mov qword [file_extension_len], rcx
 
 print_path:     mov qword [path_len], rax
                 lea rsi, [path_buff]

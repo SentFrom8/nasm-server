@@ -3,9 +3,9 @@ sockaddr: resb 16
 usr_sockaddr: resb 16
 upeer_addrlen: resd 1
 
-listener_epoll_event: resb 16
-client_epoll_event: resb 16
-epoll_return: resb 16*256
+listener_epoll_event: resb 12
+client_epoll_event: resb 12
+epoll_return: resb 12*256
 
 listener_fd: resq 1
 epoll_fd: resq 1
@@ -98,12 +98,12 @@ epoll_ctl:      mov rdi, rax                            ; epoll fd
                 mov rax, 233                            
                 mov rsi, 1                              ; operation: EPOLL_CTL_ADD
                 mov rdx, qword [listener_fd]            ; socket fd
-                mov rbx, 0x001                          ; EPOLLIN for incoming connections
-                or rbx, 0x008                           ; EPOLLERR if the fd errors
-                or rbx, 0x010                           ; EPOLLHUP if the client disconnects right away
-                mov qword [listener_epoll_event], rbx           ; Event flag numbers can be found in /usr/include/x86_64-linux-gnu/sys/epoll.h
+                mov ebx, 0x001                          ; EPOLLIN for incoming connections
+                or ebx, 0x008                           ; EPOLLERR if the fd errors
+                or ebx, 0x010                           ; EPOLLHUP if the client disconnects right away
+                mov dword [listener_epoll_event], ebx           ; Event flag numbers can be found in /usr/include/x86_64-linux-gnu/sys/epoll.h
                 mov rbx, qword [listener_fd]
-                mov qword [listener_epoll_event + 8], rbx       ; FD in data for later use
+                mov qword [listener_epoll_event + 4], rbx       ; FD in data for later use
                 lea r10, [listener_epoll_event]                 
                 syscall                                 ; sys_epoll_ctl -> adds the listener socket to the watch list
                 cmp rax, 0
@@ -131,20 +131,20 @@ epoll_wait:     mov rax, 232
 client_loop:    cmp rbx, r12                            ; Check if the counter passed the last connection
                 jge epoll_wait
 
-client_error:   mov r15, rbx
-                shl r15, 4
-                mov r13, qword [epoll_return + r15 + 8]
-                mov r14, qword [epoll_return + r15]
-                test r14, 0x008                         ; Check for errors
+client_error:   mov rax, 12
+                mul rbx
+                mov r13, qword [epoll_return + rax + 4]
+                mov r14d, dword [epoll_return + rax]
+                test r14d, 0x008                         ; Check for errors
                 jz client_hup
                 lea rsi, [error_client_epoll]
                 mov rdx, error_client_epoll_len
                 call print
                 jmp client_cls
 
-client_hup:     test r14, 0x010                         ; Check for hangup
+client_hup:     test r14d, 0x010                         ; Check for hangup
                 jnz print_hup
-                test r14, 0x2000                        ; Check for half-close
+                test r14d, 0x2000                        ; Check for half-close
                 jnz print_hup
                 jz accept
 
@@ -181,12 +181,12 @@ epoll_wlist:    mov rdx, rax
                 mov rax, 233
                 mov rdi, qword [epoll_fd]
                 mov rsi, 1
-                mov r13, 0x001
-                or r13, 0x008
-                or r13, 0x010
-                or r13, 0x2000                          ; EPOLLRDHUP if the client half-closes
-                mov qword [client_epoll_event], r13
-                mov qword [client_epoll_event + 8], rdx
+                mov r13d, 0x001
+                or r13d, 0x008
+                or r13d, 0x010
+                or r13d, 0x2000                          ; EPOLLRDHUP if the client half-closes
+                mov dword [client_epoll_event], r13d
+                mov qword [client_epoll_event + 4], rdx
                 lea r10, [client_epoll_event]
                 syscall
                 cmp rax, 0

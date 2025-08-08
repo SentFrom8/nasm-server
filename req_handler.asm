@@ -28,10 +28,8 @@ extern print, client_cls, handle_res
 
 ; Fds of valid get requests should be stored and a response should only be sent if the fd is in the list
 ; EPOLLOUT should be saved for a period of time in case an EPOLLIN arrives later
-; Inputs need to be sanitized, and their size must be limited
-; GET / causes a buffer overflow
 
-handle_req:     test r14, 0x001
+handle_req:     test r14d, 0x001
                 jz client_cls
                 mov rax, 0
                 mov rdi, r13

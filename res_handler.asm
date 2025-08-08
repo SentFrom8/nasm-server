@@ -15,6 +15,8 @@ mime_type: resq 1
 
 iovec_buff: resb 16*3
 
+file_offset_buff: resq 1
+
 section .rodata
 
 ext_html:     db ".html", 0
@@ -251,22 +253,24 @@ writev:         mov rax, 20
                 lea rsi, [error_write]
                 mov rdx, error_write_len
                 call print
-                jmp client_cls
+                jmp file_cls
 
 prep_args:      xor r15, r15
                 mov r10, qword [fstat_buff + 48]
                 mov rsi, qword [file_fd]
+                mov qword [file_offset_buff], 0
 
 sendfile_loop:  cmp r10, 0
                 je uncork
 
                 mov rax, 40
-                mov rdx, r15
+                lea rdx, file_offset_buff
                 syscall                                 ; sys_sendfile -> sends r10 bytes from one file to another, starting at rdx
                 cmp rax, 0
-                jle client_cls
+                jle file_cls
                 add r15, rax
                 sub r10, rax
+                mov qword [file_offset_buff], r15
                 jmp sendfile_loop
 
 uncork:         mov rax, 54
@@ -274,6 +278,10 @@ uncork:         mov rax, 54
                 mov rdx, 3
                 lea r10, [optval_uncork]
                 mov r8, 4
+                syscall
+
+file_cls:       mov rax, 3
+                mov rdi, qword [file_fd]
                 syscall
 
                 jmp client_cls

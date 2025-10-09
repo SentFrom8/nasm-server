@@ -1,7 +1,5 @@
 section .bss
-req: resb 1000
 fextension: resb 30
-req_len: resq 1
 path_len: resq 1
 
 global file_extension, file_extension_len
@@ -24,20 +22,24 @@ index_extension_offset equ 6
 
 section .text
 global handle_req
-extern print, client_cls, handle_res
+extern print, client_cls, handle_res, client_req_buffer
 
 ; Fds of valid get requests should be stored and a response should only be sent if the fd is in the list
 ; EPOLLOUT should be saved for a period of time in case an EPOLLIN arrives later
 
-handle_req:     test r14d, 0x001
-                jz client_cls
+handle_req:     test qword [r13 + 40], 1
+                jnz client_cls
+                test r14d, 0x001
+                jz handle_res
                 mov rax, 0
-                mov rdi, r13
-                lea rsi, [req]
-                mov rdx, 1000
+                mov rdi, qword [r13]
+                mov r15, rdi
+                shl r15, 13
+                lea rsi, [client_req_buffer + r15]
+                mov qword [r13 + 16], rsi
+                mov rdx, 32768
                 syscall                                         ; sys_read -> reads the incoming message from the client and writes it into req
-                mov qword [req_len], rax
-                cmp rax, get_req_identifier_len
+                cmp rax, 0
                 jg validate_req
                 lea rsi, [error_receive]
                 mov rdx, error_receive_len
@@ -45,6 +47,8 @@ handle_req:     test r14d, 0x001
                 jmp client_cls
 
 validate_req:   cld
+                shr r13
+
                 lea rdi, [req]
                 lea rsi, [get_req_identifier]
                 mov rcx, get_req_identifier_len

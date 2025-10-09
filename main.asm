@@ -3,15 +3,23 @@ sockaddr: resb 16
 usr_sockaddr: resb 16
 upeer_addrlen: resd 1
 
-listener_epoll_event: resb 12
-client_epoll_event: resb 12
-epoll_return: resb 12*256
+epoll_event: resb 12
+epoll_return: resb 12*248
 
 listener_fd: resq 1
 epoll_fd: resq 1
 client_fd: resq 1
 
+global client_data_struct, client_req_buffer
+client_data_struct: resb 48 * 4096                      ; fd(8B), *read_buff(8B), req_len(8B), res_sent(8B), res_total(8B), nanoseconds(8B), heap_index(4B), flags(4B)
+client_req_buffer: resb 8192 * 4096
+
+; flags: 1 - timer, 2 - listener, 4 - ready_to_write
+
 section .data
+
+itimerspec dq 0, 0, 15, 0
+
 server_listening db "[SERVER] Listening on 0.0.0.0:8080", 10
 server_listening_len equ $ - server_listening
 
@@ -54,7 +62,6 @@ _start:         mov rax, 41
                 or rsi, 0x800                           ; SOCK_NONBLOCK flag
                 xor rdx, rdx                            ; System picks the protocol (TCP for SOCK_STREAM type)
                 syscall                                 ; sys_socket -> creates the socket
-                mov qword [listener_fd], rax            ; save socket fd
                 cmp rax, 0                              ; if error, print the error and jump to end
                 jge bind
                 lea rsi, [error_socket]
@@ -62,7 +69,14 @@ _start:         mov rax, 41
                 call print
                 jmp end
 
-bind:           xor rbx, rbx                            ; Zero out rbx because the address is 0.0.0.0
+bind:           mov r13, rax
+                mul 48
+                lea rax, [client_data_struct + rax]
+                mov qword [rax], r13
+                mov qword [rax + 48], 2
+                mov r14, rax
+
+                xor rbx, rbx                            ; Zero out rbx because the address is 0.0.0.0
                 mov rbx, 0x901F                         ; The bind syscall expects big endian, so the order of bytes in the number 8080 is reversed
                 shl rbx, 16                             ; Move the port by 16 bits, because the first 16 bits are reserved for the family
                 add rbx, 2                              ; Sets the family to AF_INET
@@ -101,10 +115,9 @@ epoll_ctl:      mov rdi, rax                            ; epoll fd
                 mov ebx, 0x001                          ; EPOLLIN for incoming connections
                 or ebx, 0x008                           ; EPOLLERR if the fd errors
                 or ebx, 0x010                           ; EPOLLHUP if the client disconnects right away
-                mov dword [listener_epoll_event], ebx           ; Event flag numbers can be found in /usr/include/x86_64-linux-gnu/sys/epoll.h
-                mov rbx, qword [listener_fd]
-                mov qword [listener_epoll_event + 4], rbx       ; FD in data for later use
-                lea r10, [listener_epoll_event]                 
+                mov dword [epoll_event], ebx            ; Event flag numbers can be found in /usr/include/x86_64-linux-gnu/sys/epoll.h
+                mov qword [epoll_event + 4], r14        ; FD in data for later use
+                lea r10, [epoll_event]                 
                 syscall                                 ; sys_epoll_ctl -> adds the listener socket to the watch list
                 cmp rax, 0
                 jge epoll_wait
@@ -116,7 +129,7 @@ epoll_ctl:      mov rdi, rax                            ; epoll fd
 epoll_wait:     mov rax, 232
                 mov rdi, qword [epoll_fd]
                 lea rsi, [epoll_return]                 ; Buffer for events
-                mov rdx, 256                            ; Max simultaneous connections, not total
+                mov rdx, 248                            ; Max simultaneous connections, not total
                 mov r10, 60000                          ; Timeout, set to -1 for permanent
                 syscall
                 mov r12, rax                            ; sys_epoll_wait -> Blocks the thread until there is an EPOLLIN connection or the timeout expires
@@ -155,20 +168,25 @@ print_hup:      lea rsi, [client_epollhup]
 client_cls:     inc rbx
                 cmp r13, qword [listener_fd]
                 je client_loop
-                mov rdi, r13
+                mov rdi, qword [r13]
                 mov rax, 3
                 syscall                                 ; If not, close the socket
+
+                mov rdi, qword [r13 + 8]
+                mov rax, 3
+                syscall                                 ; Also close the timer
+
                 jmp client_loop
                 
-accept:         cmp r13, qword [listener_fd]
-                jne handle_req                          ; If not a connecting socket, jump to receive
-                mov rax, 43
+accept:         test qword [r13 + 40], 2
+                jz handle_req                           ; if not a connecting socket, jump to receive
+                mov rax, 288
                 mov rdi, qword [listener_fd]
                 lea rsi, [usr_sockaddr]
                 mov dword [upeer_addrlen], 16
                 lea rdx, [upeer_addrlen]
-                syscall
-                mov qword [client_fd], rax
+                mov r10, 3                              ; sets the sock_nonblock and sock_cloexec flags
+                syscall                                 ; sys_accept4 -> same as accept but allows flags to be set
                 inc rbx
                 cmp rax, 0
                 jge epoll_wlist
@@ -177,22 +195,55 @@ accept:         cmp r13, qword [listener_fd]
                 call print
                 jmp client_loop
 
-epoll_wlist:    mov rdx, rax
+epoll_wlist:    mov r15, rax
+                mul 48
+                lea rax, [client_data_struct + rax]
+                mov qword [rax], r15
+                mov [rax + 48], 0
+                mov r15, rax
+                mov rdx, rax
                 mov rax, 233
                 mov rdi, qword [epoll_fd]
                 mov rsi, 1
                 mov r13d, 0x001
                 or r13d, 0x008
                 or r13d, 0x010
-                or r13d, 0x2000                          ; EPOLLRDHUP if the client half-closes
-                mov dword [client_epoll_event], r13d
-                mov qword [client_epoll_event + 4], rdx
-                lea r10, [client_epoll_event]
+                or r13d, 0x2000                         ; epollrdhup if the client half-closes
+                mov dword [epoll_event], r13d
+                mov qword [epoll_event + 4], r15
+                lea r10, [epoll_event]
                 syscall
                 cmp rax, 0
-                jge client_loop
+                jl safety_cls
 
-safety_cls:     mov rdi, qword [client_fd]              ; Closes the socket if adding to the epoll watch list fails
+timer_create:   mov rax, 283
+                mov rdi, 1                              ; clock_monotonic
+                mov rsi, 3                              ; sets the sock_nonblock and sock_cloexec flags
+                syscall                                 ; sys_timerfd_create -> creates a timer with an fd for each client. this will be used to close inactive sockets
+
+timer_epoll:    mov r15, rax
+                mul 48
+                lea rax, [client_data_struct + rax]
+                mov qword [rax], r15
+                mov qword [rax + 40], 1
+                mov rdx, r15
+                mov rax, 233
+                mov rdi, qword [epoll_fd]
+                mov rsi, 1
+                mov dword [epoll_event], 0x1
+                mov qword [epoll_event + 4], rax
+                lea r10, epoll_event
+                syscall
+
+timer_set:      mov rdi, rdx
+                mov rax, 286
+                mov rsi, 0
+                lea rdx, itimerspec
+                mov r10, 0
+                syscall
+                jmp client_loop
+
+safety_cls:     mov rdi, qword [client_fd]              ; closes the socket if adding to the epoll watch list fails
                 mov rax, 3
                 syscall
 
@@ -210,7 +261,7 @@ safety_cls:     mov rdi, qword [client_fd]              ; Closes the socket if a
 ;                 mov rax, 20
 ;                 lea rsi, [iovec_buff]
 ;                 mov rdx, 3
-;                 syscall                                 ; sys_writev -> writes an array of buffers (I/O vector)
+;                 syscall                                 ; sys_writev -> writes an array of buffers (i/o vector)
 ;                 cmp rax, 0
 ;                 jge child_sock_cls
 ;                 inc rbx

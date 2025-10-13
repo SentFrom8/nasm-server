@@ -16,11 +16,9 @@ global mh_push, mh_bubble, mh_remove
                         mov rax, rdi
                         dec rax
                         shr rax, 1
-                        mov rsi, qword [heap + rdi*8]
-                        mov r10, qword [rsi + CLIENT_NANOSECOND_OFFSET]
                         mov rdx, qword [heap + rax*8]
-                        mov r8, qword [rdx + CLIENT_NANOSECOND_OFFSET]
-                        cmp r10, r8
+                        mov r10, qword [rdx + CLIENT_NANOSECOND_OFFSET]
+                        cmp rsi, r10
 %endmacro
 
 ; compares the element at index rdi to its smaller child
@@ -40,36 +38,34 @@ global mh_push, mh_bubble, mh_remove
                         mov r10, qword [r10 + CLIENT_NANOSECOND_OFFSET]
                         jmp %%cmp_child
 
-%%cmp_children:         mov rsi, rax
-                        dec rsi
+%%cmp_children:         mov rdx, rax
+                        dec rdx
 
-                        mov rsi, qword [heap + rsi*8]
-                        mov rsi, qword [rsi + CLIENT_NANOSECOND_OFFSET]
+                        mov rdx, qword [heap + rdx*8]
+                        mov rdx, qword [rdx + CLIENT_NANOSECOND_OFFSET]
 
                         mov r10, qword [heap + rax*8]
                         mov r10, qword [r10 + CLIENT_NANOSECOND_OFFSET]
-                        cmp rsi, r10
+                        cmp rdx, r10
                         jg %%cmp_child
                         dec rax
-                        mov r10, rsi
+                        mov r10, rdx
 
-%%cmp_child:            mov rsi, qword [heap + rdi*8]
-                        mov rsi, qword [rsi + CLIENT_NANOSECOND_OFFSET]
-                        cmp rsi, r10
+%%cmp_child:            cmp rsi, r10
 %endmacro
 
 ; Swaps places of elements at indices rdi, rax. Also changes the heap_index value for each element
-swap_places:            mov rsi, qword [heap + rdi*8]
-                        mov rdx, qword [heap + rax*8]
+swap_places:            mov rdx, qword [heap + rdi*8]
+                        mov r10, qword [heap + rax*8]
 
-                        mov r10d, dword [rsi + CLIENT_HEAP_INDEX_OFFSET]
                         mov r8d, dword [rdx + CLIENT_HEAP_INDEX_OFFSET]
+                        mov r9d, dword [r10 + CLIENT_HEAP_INDEX_OFFSET]
 
-                        mov dword [rsi + CLIENT_HEAP_INDEX_OFFSET], r8d
-                        mov dword [rdx + CLIENT_HEAP_INDEX_OFFSET], r10d
+                        mov dword [rdx + CLIENT_HEAP_INDEX_OFFSET], r9d
+                        mov dword [r10 + CLIENT_HEAP_INDEX_OFFSET], r8d
 
-                        mov qword [heap + rdi*8], rdx
-                        mov qword [heap + rax*8], rsi
+                        mov qword [heap + rdi*8], r10
+                        mov qword [heap + rax*8], rdx
                         ret
 
 ; Pushes the value in RDI to the heap
@@ -121,11 +117,17 @@ mh_bubble:              cmp rdi, 0
                         je mh_bubble_down
                         jmp invalid_entry
 
-cmp_parent_init:        cmp_parent
+cmp_parent_init:        mov rsi, qword [heap + rdi*8]
+                        mov rsi, qword [rsi + CLIENT_NANOSECOND_OFFSET]
+
+                        cmp_parent
                         jl mh_bubble_up_loop
 
 ; When bubbling down, places should only be swapped with the smaller child. This preserves the min heap property
-mh_bubble_down:         cmp_smaller_child
+mh_bubble_down:         mov rsi, qword [heap + rdi*8]
+                        mov rsi, qword [rsi + CLIENT_NANOSECOND_OFFSET]
+
+                        cmp_smaller_child
                         jg mh_bubble_down_loop
                         ret
 

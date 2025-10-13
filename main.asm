@@ -18,6 +18,8 @@ client_req_buffer: resb 8192 * 4096
 
 section .data
 
+CLIENT_NANOSECOND_OFFSET equ 40
+CLIENT_HEAP_INDEX_OFFSET equ 48
 itimerspec dq 0, 0, 15, 0
 
 server_listening db "[SERVER] Listening on 0.0.0.0:8080", 10
@@ -45,7 +47,7 @@ client_epollhup db "[CLIENT] EPOLLHUP", 10
 client_epollhup_len equ $ - client_epollhup
 
 section .text
-global _start, print, client_loop, client_cls, epoll_wait
+global _start, print, client_loop, client_cls, epoll_wait, CLIENT_NANOSECOND_OFFSET, CLIENT_HEAP_INDEX_OFFSET
 extern handle_req
 
 print:          mov rax, 1

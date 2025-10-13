@@ -4,18 +4,69 @@ heap: resq 4096
 section .data
 heap_size dd 0
 
+CLIENT_NANOSECOND_OFFSET equ 40
+CLIENT_HEAP_INDEX_OFFSET equ 48
+
 section .text
 global mh_push, mh_bubble, mh_remove
+; extern CLIENT_NANOSECOND_OFFSET, CLIENT_HEAP_INDEX_OFFSET
 
-; Swaps places of elements at indices rdi, rax with the elements themselves loaded into rsi, rdx respectively. Also changes the heap_index value for each element
+; Compares the element at index rdi to its parent
+%macro cmp_parent 0
+                        mov rax, rdi
+                        dec rax
+                        shr rax, 1
+                        mov rsi, qword [heap + rdi*8]
+                        mov r10, qword [rsi + CLIENT_NANOSECOND_OFFSET]
+                        mov rdx, qword [heap + rax*8]
+                        mov r8, qword [rdx + CLIENT_NANOSECOND_OFFSET]
+                        cmp r10, r8
+%endmacro
+
+; compares the element at index rdi to its smaller child
+%macro cmp_smaller_child 0
+                        mov rax, rdi
+                        shl rax, 1
+                        inc rax
+                        cmp eax, dword [heap_size]
+                        jl %%has_right_child
+                        ret
+
+%%has_right_child:      inc rax
+                        cmp eax, dword [heap_size]
+                        jl %%cmp_children
+                        dec rax
+                        mov r10, qword [heap + rax*8]
+                        mov r10, qword [r10 + CLIENT_NANOSECOND_OFFSET]
+                        jmp %%cmp_child
+
+%%cmp_children:         mov rsi, rax
+                        dec rsi
+
+                        mov rsi, qword [heap + rsi*8]
+                        mov rsi, qword [rsi + CLIENT_NANOSECOND_OFFSET]
+
+                        mov r10, qword [heap + rax*8]
+                        mov r10, qword [r10 + CLIENT_NANOSECOND_OFFSET]
+                        cmp rsi, r10
+                        jg %%cmp_child
+                        dec rax
+                        mov r10, rsi
+
+%%cmp_child:            mov rsi, qword [heap + rdi*8]
+                        mov rsi, qword [rsi + CLIENT_NANOSECOND_OFFSET]
+                        cmp rsi, r10
+%endmacro
+
+; Swaps places of elements at indices rdi, rax. Also changes the heap_index value for each element
 swap_places:            mov rsi, qword [heap + rdi*8]
                         mov rdx, qword [heap + rax*8]
 
-                        mov r10d, dword [rsi + 48]
-                        mov r8d, dword [rdx + 48]
+                        mov r10d, dword [rsi + CLIENT_HEAP_INDEX_OFFSET]
+                        mov r8d, dword [rdx + CLIENT_HEAP_INDEX_OFFSET]
 
-                        mov dword [rsi + 48], r8d
-                        mov dword [rdx + 48], r10d
+                        mov dword [rsi + CLIENT_HEAP_INDEX_OFFSET], r8d
+                        mov dword [rdx + CLIENT_HEAP_INDEX_OFFSET], r10d
 
                         mov qword [heap + rdi*8], rdx
                         mov qword [heap + rax*8], rsi
@@ -29,14 +80,14 @@ mh_push:                cmp dword [heap_size], 0
                         dec eax
                         shr eax, 1 
                         mov rax, qword [heap + eax*8]
-                        mov rax, qword [rax + 40]
-                        cmp rax, qword [rdi + 40]
+                        mov rax, qword [rax + CLIENT_NANOSECOND_OFFSET]
+                        cmp rax, qword [rdi + CLIENT_NANOSECOND_OFFSET]
                         jg invalid_entry
 
 push:                   mov eax, dword [heap_size]
                         mov qword [heap + rax*8], rdi
 
-                        mov dword [rdi + 48], eax
+                        mov dword [rdi + CLIENT_HEAP_INDEX_OFFSET], eax
                         inc dword [heap_size]
                         ret
 
@@ -55,7 +106,7 @@ mh_remove:              mov eax, dword [heap_size]
                         jl invalid_entry
 
                         mov rsi, qword [heap + rax*8]
-                        mov dword [rsi + 48], edi
+                        mov dword [rsi + CLIENT_HEAP_INDEX_OFFSET], edi
                         mov qword [heap + rdi*8], rsi
                         mov dword [heap_size], eax
                         call mh_bubble
@@ -70,48 +121,11 @@ mh_bubble:              cmp rdi, 0
                         je mh_bubble_down
                         jmp invalid_entry
 
-cmp_parent_init:        mov rax, rdi
-                        dec rax
-                        shr rax, 1
-                        mov rsi, qword [heap + rdi*8]
-                        mov r10, qword [rsi + 40]
-                        mov rdx, qword [heap + rax*8]
-                        mov r8, qword [rdx + 40]
-                        cmp r10, r8
+cmp_parent_init:        cmp_parent
                         jl mh_bubble_up_loop
 
 ; When bubbling down, places should only be swapped with the smaller child. This preserves the min heap property
-mh_bubble_down:         mov rax, rdi
-                        shl rax, 1
-                        inc rax
-                        cmp eax, dword [heap_size]
-                        jl has_right_child_init
-                        ret
-
-has_right_child_init:   inc rax
-                        cmp eax, dword [heap_size]
-                        jl cmp_children_init
-                        dec rax
-                        mov r10, qword [heap + rax*8]
-                        mov r10, qword [r10 + 40]
-                        jmp cmp_child_init
-
-cmp_children_init:      mov rsi, rax
-                        dec rsi
-
-                        mov rsi, qword [heap + rsi*8]
-                        mov rsi, qword [rsi + 40]
-
-                        mov r10, qword [heap + rax*8]
-                        mov r10, qword [r10 + 40]
-                        cmp rsi, r10
-                        jg cmp_child_init
-                        dec rax
-                        mov r10, rsi
-
-cmp_child_init:         mov rsi, qword [heap + rdi*8]
-                        mov rsi, qword [rsi + 40]
-                        cmp rsi, r10
+mh_bubble_down:         cmp_smaller_child
                         jg mh_bubble_down_loop
                         ret
 
@@ -120,52 +134,16 @@ mh_bubble_up_loop:      call swap_places
                         mov rdi, rax
 
                         cmp rdi, 0
-                        jg cmp_parent
+                        jg cmp_parent_loop
                         ret
 
-cmp_parent:             mov rax, rdi
-                        dec rax
-                        shr rax, 1
-                        mov rsi, qword [heap + rdi*8]
-                        mov r10, qword [rsi + 40]
-                        mov rdx, qword [heap + rax*8]
-                        mov r8, qword [rdx + 40]
-                        cmp r10, r8
+cmp_parent_loop:        cmp_parent
                         jl mh_bubble_up_loop
 
 mh_bubble_down_loop:    call swap_places
 
                         mov rdi, rax
 
-                        shl rax, 1
-                        inc rax
-                        cmp eax, dword [heap_size]
-                        jl has_right_child
-                        ret
-
-has_right_child:        inc rax
-                        cmp eax, dword [heap_size]
-                        jl cmp_children
-                        dec rax
-                        mov r10, qword [heap + rax*8]
-                        mov r10, qword [r10 + 40]
-                        jmp cmp_child
-
-cmp_children:           mov rsi, rax
-                        dec rsi
-
-                        mov rsi, qword [heap + rsi*8]
-                        mov rsi, qword [rsi + 40]
-
-                        mov r10, qword [heap + rax*8]
-                        mov r10, qword [r10 + 40]
-                        cmp rsi, r10
-                        jg cmp_child
-                        dec rax
-                        mov r10, rsi
-
-cmp_child:              mov rsi, qword [heap + rdi*8]
-                        mov rsi, qword [rsi + 40]
-                        cmp rsi, r10
+                        cmp_smaller_child
                         jg mh_bubble_down_loop
                         ret

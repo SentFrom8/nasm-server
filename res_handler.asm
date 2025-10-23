@@ -136,7 +136,7 @@ error_write_len equ $ - error_write
 
 section .text
 global handle_res
-extern connection_status, path_buff, print, epoll_wait, client_loop, client_cls, file_extension, file_extension_len
+extern connection_status, path_buff, print, epoll_wait, event_loop, client_cls, file_extension, file_extension_len
 
 ; needs a cork
 ; sendfile needs to loop

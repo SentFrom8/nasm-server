@@ -4,12 +4,9 @@ heap: resq 4096
 section .data
 heap_size dd 0
 
-CLIENT_NANOSECOND_OFFSET equ 40
-CLIENT_HEAP_INDEX_OFFSET equ 48
-
 section .text
 global mh_push, mh_bubble, mh_remove
-; extern CLIENT_NANOSECOND_OFFSET, CLIENT_HEAP_INDEX_OFFSET
+extern Client
 
 ; Compares the element at index rdi to its parent
 %macro cmp_parent 0

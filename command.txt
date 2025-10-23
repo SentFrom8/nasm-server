@@ -1,0 +1,1 @@
+nasm -felf64 min_heap_timespec.asm && nasm -felf64 min_heap_timespec_test.asm && ld -o min_heap_timespec_test min_heap_timespec.o min_heap_timespec_test.o

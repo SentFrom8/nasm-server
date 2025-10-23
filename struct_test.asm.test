@@ -1,0 +1,18 @@
+section .bss
+
+struc Test
+.field1: resq 1
+.field2: resq 1
+endstruc
+
+test_arr: resb Test_size * 64
+
+section .data
+
+section .text
+global _start
+
+_start:             lea rax, [test_arr]
+                    mov rbx, Test_size
+                    mov qword [rax + Test.field1], 1
+                    mov qword [rax + Test.field2], 2

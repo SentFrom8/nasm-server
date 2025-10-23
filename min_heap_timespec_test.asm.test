@@ -1,0 +1,79 @@
+section .bss
+%include "structs.inc"
+
+client_data_struct: resb Client_size * 4098
+
+section .data
+heap_values: dq 1, 1
+             dq 1, 3
+             dq 2, 4
+             dq 5, 8
+             dq 5, 7
+             dq 5, 9
+             dq 10, 10
+             dq 10, 11
+             dq 11, 12
+             dq 15, 13
+             dq 12, 14
+
+section .text
+global _start
+extern mh_push, mh_bubble, mh_remove 
+
+_start:             xor rcx, rcx
+                    xor rax, rax
+                    mov r12, Client_size
+
+heap_push_loop:     mov rax, rcx
+                    mul r12
+                    mov r13, rcx
+                    shl r13, 4
+                    mov rbx, qword [heap_values + r13]
+                    mov qword [client_data_struct + rax + Client.time + Timespec.seconds], rbx
+                    mov rbx, qword [heap_values + r13 + 8]
+                    mov qword [client_data_struct + rax + Client.time + Timespec.nanoseconds], rbx
+                    lea rdi, [client_data_struct + rax]
+                    call mh_push
+                    inc rcx
+                    cmp rcx, 10
+                    jle heap_push_loop
+
+push_small:         mov rax, rcx
+                    mul r12
+                    mov qword [client_data_struct + rax + Client.time + Timespec.seconds], 2
+                    lea rdi, [client_data_struct + rax]
+                    call mh_push
+
+remove_first:       mov rdi, 0
+                    call mh_remove
+
+remove_last:        mov rdi, 9
+                    call mh_remove
+
+remove_middle:      mov rdi, 5
+                    call mh_remove
+
+remove_invalid:     mov rdi, 100
+                    call mh_remove
+
+remove_invalid2:    mov rdi, -1
+                    call mh_remove
+
+bubble_down_test:   lea rax, [client_data_struct + Client_size]
+                    mov qword [rax + Client.time + Timespec.seconds], 21
+                    mov rdi, 0
+                    call mh_bubble
+
+bubble_up_test:     mov rax, Client_size
+                    mov rbx, 10
+                    mul rbx
+                    mov rbx, rax
+                    lea rax, [client_data_struct + rbx]
+                    mov qword [rax + Client.time + Timespec.seconds], 1
+                    mov qword [rax + Client.time + Timespec.nanoseconds], 0
+                    mov rdi, 4
+                    call mh_bubble
+
+exit:               mov rax, 60
+                    mov rdi, 0
+                    syscall

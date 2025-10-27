@@ -6,7 +6,7 @@ section .data
 heap_size dd 0
 
 section .text
-global mh_push, mh_bubble, mh_remove
+global mh_push, mh_bubble, mh_remove, heap
 
 ; Compares the element at index rdi to its parent, 
 %macro cmp_parent 0

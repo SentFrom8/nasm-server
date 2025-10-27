@@ -24,9 +24,6 @@ section .text
 global handle_req
 extern print, client_cls, handle_res, client_req_buffer
 
-; Fds of valid get requests should be stored and a response should only be sent if the fd is in the list
-; EPOLLOUT should be saved for a period of time in case an EPOLLIN arrives later
-
 handle_req:     test qword [r13 + 40], 1
                 jnz client_cls
                 test r14d, 0x001

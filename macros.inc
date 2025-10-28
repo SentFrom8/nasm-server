@@ -9,6 +9,5 @@
                         mov rax, 1
                         mov rdi, 1
                         syscall
-                        ret
 %endmacro
                     

@@ -31,7 +31,8 @@ accept_loop:        mov rax, 288
                     lea rsi, [usr_sockaddr]
                     mov dword [upeer_addrlen], 16
                     lea rdx, [upeer_addrlen]
-                    mov r10, 3                              ; sets the sock_nonblock and sock_cloexec flags
+                    mov r10, 0x800                          ; SOCK_NONBLOCK
+                    or r10, 0x80000                         ; SOCK_CLOEXEC closes the socket when any exec family functions are called. Not strictly necessary
                     syscall                                 ; sys_accept4 -> same as accept but allows flags to be set
                     cmp rax, 0
                     jl accept_error
@@ -42,7 +43,8 @@ epoll_wlist:        mov r15, rax
                     lea rdi, [clients + rax]
                     xor rax, rax
                     rep stosb                               ; zeroes out the client struct
-                    sub rdi, Client_size                    ; restores the pointer
+
+rdi_reset:          sub rdi, Client_size                    ; restores the pointer
                     mov qword [rdi], r15
                     mov rdx, r15
                     mov r15, rdi

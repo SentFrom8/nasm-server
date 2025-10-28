@@ -13,7 +13,9 @@ section .text
 global client_event
 extern listener_fd, event_loop
 
-client_event:                   test r14d, 0x008                                            ; Check for errors
+client_event:                   inc rbx
+                                jmp event_loop
+                                test r14d, 0x008                                            ; Check for errors
                                 jz client_hup
                                 lea rsi, [error_client_epoll]
                                 mov rdx, error_client_epoll_len

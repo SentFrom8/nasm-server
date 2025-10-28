@@ -99,7 +99,7 @@ listener_epoll:     mov rdi, rax                                                
                     lea r10, [epoll_event]                 
                     syscall                                                     ; sys_epoll_ctl -> adds the listener socket to the watch list
                     cmp rax, 0
-                    jge epoll_wait
+                    jge timer_create
                     lea rsi, [error_listener_epoll]
                     mov rdx, error_listener_epoll_len
                     print
@@ -107,7 +107,9 @@ listener_epoll:     mov rdi, rax                                                
 
 timer_create:       mov rax, 283
                     mov rdi, 1                                                  ; clock_monotonic
-                    mov rsi, 3                                                  ; sets the sock_nonblock and sock_cloexec flags
+                    xor rdi, rdi
+                    mov rsi, 0x800                                              ; sets the sock_nonblock and sock_cloexec flags
+                    or rsi, 0x80000
                     syscall                                                     ; sys_timerfd_create -> creates a timer with a file descriptor
 
 timer_epoll:        mov qword [timer_fd], rax
@@ -138,7 +140,7 @@ epoll_wait:         mov rax, 232
 event_loop:         cmp rbx, r12                                                ; Check if the counter passed the last connection
                     jge epoll_wait
 
-event_handler:      mov rax, 12
+event_handler:      mov rax, Epoll_event_size
                     mul rbx
                     mov r13, qword [epoll_return + rax + 4]
                     mov r14d, dword [epoll_return + rax]

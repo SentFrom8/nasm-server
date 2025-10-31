@@ -5,11 +5,13 @@ section .data
 itimerspec: times Itimerspec_size db 0 
 
 section .text
-global update_timer, timer_event
-extern heap, heap_size, timer_fd, conn_close, event_loop
+%include "macros.inc"
+global update_timer, timer_event, reset_timer
+extern heap, heap_size, timer_fd, conn_close, connection_timer_seconds, event_loop, mh_bubble
 
 ; If r9 is used, update conn_handler to use push/pop
 
+; sets the timer timeout to the first element in the heap
 update_timer:               cmp dword [heap_size], 0
                             jne get_client_time
 
@@ -29,7 +31,14 @@ set_time_call:              mov rax, 286
                             syscall                                                     ; sys_timerfd_settime -> sets the timer to the absolute time of the first element in the heap
                             ret
 
+; resets the timer of the element *r13 and bubbles it. The syscall clobbers rdi so might as well be r13
+reset_timer:                get_time r13 + Client.time
+                            add qword [r13 + Client.time + Timespec.seconds], connection_timer_seconds
+                            mov edi, dword [r13 + Client.heap_index]
+                            call mh_bubble
+                            call update_timer
+                            ret
+
 timer_event:                mov rdi, qword [heap]
                             call conn_close
-                            inc rbx
                             jmp event_loop

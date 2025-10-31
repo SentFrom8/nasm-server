@@ -119,7 +119,7 @@ mh_remove:              cmp rdi, 0
 last_element:           dec dword [heap_size]
                         ret
 
-
+; bubbles up/down the element at index rdi
 mh_bubble:              cmp rdi, 0
                         jl invalid_entry
 

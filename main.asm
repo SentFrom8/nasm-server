@@ -1,13 +1,16 @@
 section .bss
 %include "structs.inc"
 
+
 sockaddr: resb 16
 
 epoll_event: resb Epoll_event_size
 epoll_return: resb Epoll_event_size*248
 
+client_req_limit equ 4096
 clients: resb Client_size * 4096                                                ; flags: 1 - timer, 2 - listener, 4 - ready_to_write
-client_req_buffer: resb 8192 * 4096
+client_req_buffer: resb 8192 * client_req_limit
+connection_timer_seconds equ 15
 
 listener_fd: resq 1
 epoll_fd: resq 1
@@ -24,15 +27,15 @@ error_socket_len equ $ - error_socket
 error_bind db "[ERROR] Unable to bind socket to 0.0.0.0:8080", 10
 error_bind_len equ $ - error_bind
 
-error_listener_epoll db "[ERROR] Unable to add socket to the epoll watch list", 10
+error_listener_epoll db "[ERROR] Unable to add socket the listening to the epoll watch list", 10
 error_listener_epoll_len equ $ - error_listener_epoll
 
 error_epoll_wait db "[ERROR] Epoll wait failed", 10
 error_epoll_wait_len equ $ - error_epoll_wait
 
-
 section .text
-global _start, print, event_loop, client_cls, epoll_wait, epoll_event, listener_fd, epoll_fd, timer_fd, clients, client_req_buffer
+
+global _start, event_loop, epoll_wait, epoll_event, listener_fd, epoll_fd, timer_fd, clients, client_req_buffer, client_req_limit, connection_timer_seconds
 extern handle_req, listener_event, timer_event, client_event
 
 %include "macros.inc"
@@ -91,9 +94,9 @@ listener_epoll:     mov rdi, rax                                                
                     mov rax, 233                            
                     mov rsi, 1                                                  ; operation: listener_epoll_ADD
                     mov rdx, qword [listener_fd]                                ; socket fd
-                    mov ebx, 0x001                                              ; EPOLLIN for incoming connections
-                    or ebx, 0x008                                               ; EPOLLERR if the fd errors
-                    or ebx, 0x010                                               ; EPOLLHUP if there is an issue with the fd or the network stack
+                    mov ebx, 0x1                                                ; EPOLLIN for incoming connections
+                    or ebx, 0x8                                                 ; EPOLLERR if the fd errors
+                    or ebx, 0x10                                                ; EPOLLHUP if there is an issue with the fd or the network stack
                     mov dword [epoll_event], ebx                                ; Event flag numbers can be found in /usr/include/x86_64-linux-gnu/sys/epoll.h
                     mov qword [epoll_event + Epoll_event.info], rdx             ; FD in data for later use
                     lea r10, [epoll_event]                 
@@ -124,12 +127,11 @@ timer_epoll:        mov qword [timer_fd], rax
 
 epoll_wait:         mov rax, 232
                     mov rdi, qword [epoll_fd]
-                    lea rsi, [epoll_return]                                     ; Buffer for events
-                    mov rdx, 248                                                ; Max simultaneous connections, not total
-                    mov r10, 60000                                              ; Timeout, set to -1 for permanent
+                    lea rsi, [epoll_return]                                     ; buffer for events
+                    mov rdx, 248                                                ; max simultaneous connections, not total
+                    mov r10, 60000                                              ; timeout, set to -1 for permanent
                     syscall
                     mov r12, rax                                                ; sys_epoll_wait -> Blocks the thread until there is an EPOLLIN connection or the timeout expires
-                    xor rbx, rbx
                     cmp r12, 0
                     jge event_loop
                     lea rsi, [error_epoll_wait]
@@ -137,11 +139,12 @@ epoll_wait:         mov rax, 232
                     print
                     jmp end
 
-event_loop:         cmp rbx, r12                                                ; Check if the counter passed the last connection
-                    jge epoll_wait
+event_loop:         cmp r12, 0                                                  ; Handles requests back to front. This introduces a bias towards later events per batch, but it's equally unfair
+                    je epoll_wait
 
-event_handler:      mov rax, Epoll_event_size
-                    mul rbx
+event_handler:      dec r12
+                    mov rax, Epoll_event_size
+                    mul r12
                     mov r13, qword [epoll_return + rax + 4]
                     mov r14d, dword [epoll_return + rax]
 
@@ -153,7 +156,6 @@ event_handler:      mov rax, Epoll_event_size
 
                     jmp client_event
 
-; exits the program
 end:                mov rax, 60
                     mov rdi, 0
                     syscall

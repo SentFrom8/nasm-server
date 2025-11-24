@@ -147,7 +147,6 @@ event_handler:      dec r12
                     mul r12
                     mov r13, qword [epoll_return + rax + 4]
                     mov r14d, dword [epoll_return + rax]
-
                     cmp r13, qword [listener_fd]
                     je listener_event
 

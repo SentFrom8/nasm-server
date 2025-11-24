@@ -28,6 +28,7 @@ client_read_write:              test r14d, 0x1
                                 jnz handle_req
 
                                 test r14d, 0x4
+                                jmp event_loop
                                 ;jnz handle_res
 
 print_hup:                      lea rsi, [client_epollhup]

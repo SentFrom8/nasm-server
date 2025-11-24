@@ -1,9 +1,9 @@
 section .bss
 %include "structs.inc"
-
 path_len: resq 1
 
-global file_extension, file_extension_len
+
+global file_extension
 file_extension_offset: resq 1
 
 section .data
@@ -16,8 +16,9 @@ error_req_len_len equ $ - error_req_len
 error_invalid_req db "[ERROR] Invalid request"
 error_invalid_req_len equ $ - error_invalid_req
 
-global path_buff
+global path_buff, path_len
 path_buff db "./", 30 dup(0)
+
 
 req_end db 13, 10, 13, 10
 
@@ -51,19 +52,23 @@ handle_req:             mov rax, 0
                         syscall                                                     ; sys_read -> reads the incoming message from the client and writes it into req
                         cmp rax, 0
                         jg req_finished_check
-                        cmp rax, -11
+                        jl read_error
+                        mov rdi, r13
+                        call conn_close
+                        jmp event_loop
+
+read_error:             cmp rax, -11
                         jne receive_error
                         jmp event_loop
 
-req_finished_check:     add r15, rax
+req_finished_check:     call reset_timer
+                        add r15, rax
                         mov qword [r13 + Client.req_len], r15
                         mov rax, qword [r13 + Client.read_buff]
                         mov eax, dword [rax + r15 - 4]
                         cmp eax, dword [req_end]
                         je reset_conn_timer
                         jmp event_loop
-
-reset_conn_timer:       call reset_timer
 
 validate_req:           cld
                         mov rdi, qword [r13 + Client.read_buff]
@@ -111,7 +116,7 @@ handle_period:          cmp dl, r15b                                            
 
 mk_rel_path:            sub rax, (get_req_identifier_len - 2)
                         cmp dh, 1
-                        je print_path
+                        je finalize_path
                         xor rcx, rcx
 
 append_home:            cld
@@ -123,18 +128,14 @@ append_home:            cld
                         mov qword [file_extension_offset], rax
                         lea rax, [rax - index_extension_offset + index_len]         ; this just does arithmetic
 
-; finalize_path:          lea rcx, [path_buff + rax]
-;                         mov byte [rcx], 0
-;                         sub rcx, qword [file_extension]
-;                         mov qword [file_extension_len], rcx
+finalize_path:          mov qword [path_len], rax
+                        mov dword [r13 + Client.flags], 1
 
-print_path:             mov qword [path_len], rax
-                        lea rsi, [path_buff]
+print_path:             lea rsi, [path_buff]
                         mov rdx, rax
                         call print
 
-;                        jmp handle_res
-                        jmp event_loop
+                        jmp handle_res
 
 receive_error:          lea rsi, [error_receive]
                         mov rdx, error_receive_len

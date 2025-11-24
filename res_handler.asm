@@ -1,8 +1,5 @@
-FILE_BUFFER_SIZE equ 1024 * 16
-
 section .bss
-file_content: resb FILE_BUFFER_SIZE
-file_content_len: resq 1
+%include "structs.inc"
 
 digits_str_buff: resb 10
 digits_buffer_len: resq 1
@@ -137,9 +134,6 @@ error_write_len equ $ - error_write
 section .text
 global handle_res
 extern connection_status, path_buff, print, epoll_wait, event_loop, client_cls, file_extension, file_extension_len
-
-; needs a cork
-; sendfile needs to loop
 
 last_digit:     div r15
                 add rdx, 0x30

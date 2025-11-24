@@ -10,4 +10,18 @@
                         mov rdi, 1
                         syscall
 %endmacro
-                    
+
+%macro check_1_to_9 1
+                        cmp al, 0x30
+                        jl invalid
+                        cmp al, 0x39
+                        jg %%check_A_to_F
+                        sub al, 0x30
+                        jmp %1
+
+%%check_A_to_F:         cmp al, 0x41
+                        jl invalid
+                        cmp al, 0x46
+                        jg invalid
+                        sub al, 0x37
+%endmacro

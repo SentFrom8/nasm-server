@@ -17,7 +17,7 @@ error_using_client_len equ $ - error_using_client
 
 section .text
 global listener_event
-extern clients, epoll_fd, event_loop, print, listener_fd, epoll_event, mh_push, update_timer, client_req_buffer, connection_timer_seconds
+extern clients, epoll_fd, event_loop, listener_fd, epoll_event, mh_push, update_timer, client_req_buffer, connection_timer_seconds
 
 %include "macros.inc"
 
@@ -63,9 +63,7 @@ epoll_wlist:        mov r15, rax
                     mov rdi, qword [rbx]
                     mov rax, 3
                     syscall                                 ; sys_exit -> If the connection can't be added to the epoll, close it
-                    lea rsi, [error_using_client]
-                    mov rdx, error_using_client_len
-                    print
+                    print error_using_client, error_using_client_len
                     jmp accept_loop
 
 get_clock_time:     get_time rbx + Client.time
@@ -81,7 +79,7 @@ get_clock_time:     get_time rbx + Client.time
                     syscall
                     lea rsi, [error_using_client]
                     mov rdx, error_using_client_len
-                    print
+                    print error_using_client, error_using_client_len
                     jmp accept_loop
 
 timer_start:        call update_timer
@@ -97,14 +95,10 @@ accept_error:       cmp rax, -11                            ; EAGAIN/EWOULDBLOCK
 
                     jmp event_loop
 
-acc_err_print:      lea rsi, [error_accept]
-                    mov rdx, error_accept_len
-                    print
+acc_err_print:      print error_accept, error_accept_len
                     jmp accept_loop
 
 
-listener_epollhup:  lea rsi, [error_listener]
-                    mov rdx, error_listener_length
-                    print
+listener_epollhup:  print error_listener, error_listener_length
                     jmp event_loop
 

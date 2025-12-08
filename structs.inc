@@ -24,3 +24,7 @@ struc Itimerspec
 .value: resb Timespec_size
 endstruc
 
+struc Iovec
+.iov_base: resq 1                                       ; pointer to the beginning of the string
+.iov_len: resq 1                                        ; size of the string
+endstruc

@@ -51,9 +51,7 @@ _start:             mov rax, 41
                     syscall                                                     ; sys_socket -> creates the socket
                     cmp rax, 0                                                  ; if error, print the error and jump to end
                     jge bind
-                    lea rsi, [error_socket]
-                    mov rdx, error_socket_len
-                    print
+                    print error_socket, error_socket_len
                     jmp end
 
 bind:               mov qword [listener_fd], rax
@@ -74,16 +72,14 @@ bind:               mov qword [listener_fd], rax
                     jge listen
                     lea rsi, [error_bind]
                     mov rdx, error_bind_len
-                    print
+                    print error_bind, error_bind_len
                     jmp end
 
 listen:             mov rax, 50
                     mov rdi, qword [listener_fd]
                     mov rsi, 128
                     syscall                                                     ; sys_listen -> marks the socket as passive, ready to accept connections
-                    lea rsi, [server_listening]
-                    mov rdx, server_listening_len
-                    print
+                    print server_listening, server_listening_len
 
 epoll:              mov rax, 291
                     xor rdi, rdi
@@ -103,9 +99,7 @@ listener_epoll:     mov rdi, rax                                                
                     syscall                                                     ; sys_epoll_ctl -> adds the listener socket to the watch list
                     cmp rax, 0
                     jge timer_create
-                    lea rsi, [error_listener_epoll]
-                    mov rdx, error_listener_epoll_len
-                    print
+                    print error_listener_epoll, error_listener_epoll_len
                     jmp end
 
 timer_create:       mov rax, 283
@@ -136,7 +130,7 @@ epoll_wait:         mov rax, 232
                     jge event_loop
                     lea rsi, [error_epoll_wait]
                     mov rdx, error_epoll_wait_len
-                    print
+                    print error_epoll_wait, error_epoll_wait_len
                     jmp end
 
 event_loop:         cmp r12, 0                                                  ; Handles requests back to front. This introduces a bias towards later events per batch, but it's equally unfair

@@ -18,12 +18,23 @@
                         jl %2
                         cmp al, 0x39
                         jg %%check_A_to_F
+                        
                         sub al, 0x30
                         jmp %1
 
 %%check_A_to_F:         cmp al, 0x41
                         jl %2
                         cmp al, 0x46
-                        jg %2
+                        jg %%check_a_to_f
+
                         sub al, 0x37
+                        jmp %1
+
+%%check_a_to_f:         cmp al, 0x61
+                        jl %2
+                        cmp al, 0x66
+                        jg %2
+
+                        sub al, 0x57
+                        jmp %1
 %endmacro

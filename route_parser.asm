@@ -2,15 +2,17 @@ section .bss
 %include "structs.inc"
 
 parsed_path: resb 1024
-parsed_path_len: resq 1
 
 final_path: resb 1024
 final_path_len: resq 1
+
+file_extension_offset: resq 1
 
 invalid_route_iovec resb Iovec_size*2
 
 section .data
 
+; creates a string of all valid characters in the path, including the semicolon(59) and the single quote(39)
 valid_route_chars
 %assign i 0
 %rep 10
@@ -30,7 +32,7 @@ db 97 + i
 %assign i i+1
 %endrep
 
-db '-', '.', '_', '~', '!', '$', '&', 39, '(', ')', '*', '+', ',', 59, '=', ':', '@', '%', '?', '/', '#'            ; creates a string of all valid characters in the path, including the semicolon(59) and the single quote(39)
+db '-', '.', '_', '~', '!', '$', '&', 39, '(', ')', '*', '+', ',', 59, '=', ':', '@', '%', '?', '/', '#'            
 
 valid_chars_len equ $ - valid_route_chars
 
@@ -65,13 +67,13 @@ decode_percent:         add rcx, 2
                         xor rdx, rdx
                         mov al, byte [path_buff + rcx - 1]
 
-check_1_to_9_first:     check_1_to_9 get_first_digit, invalid_request
+hex_decode_first:       hex_char_to_num get_first_digit, invalid_request
 
 get_first_digit:        shl al, 4
                         add dl, al
 
                         mov al, byte [path_buff + rcx]
-check_1_to_9_second:    check_1_to_9 add_last_digit, invalid_request
+hex_decode_second:      hex_char_to_num add_last_digit, invalid_request
 
 add_last_digit:         add dl, al
 
@@ -104,8 +106,11 @@ slash_check:            cmp al, 47
 
 handle_period:          cmp al, ah
 ;                        je finalize_path
-                        jne move_to_final_buff
-                        jmp invalid_request
+                        je invalid_request
+
+                        mov qword [file_extension_offset], rdx
+
+                        jmp move_to_final_buff
 
 
 handle_slash:           cmp al, ah

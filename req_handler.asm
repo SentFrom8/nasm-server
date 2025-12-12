@@ -40,8 +40,6 @@ extern client_cls, handle_res, client_req_buffer, conn_close, reset_timer, event
 ; write better path size logic
 ; use an offset for the extension
 ; actually, consider using fstat, checking if it's a folder and appending /index.html if it is
-; change print to take an argument and update all instances
-; percent decode should work with lowercase hex digits
 
 handle_req:             mov rax, 0
                         mov rdi, qword [r13]

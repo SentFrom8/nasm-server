@@ -13,7 +13,7 @@
                         syscall
 %endmacro
 
-%macro check_1_to_9 2
+%macro hex_char_to_num  2
                         cmp al, 0x30
                         jl %2
                         cmp al, 0x39

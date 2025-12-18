@@ -28,3 +28,9 @@ struc Iovec
 .iov_base: resq 1                                       ; pointer to the beginning of the string
 .iov_len: resq 1                                        ; size of the string
 endstruc
+
+struc Headers
+.method: resb Iovec_size
+.path: resb Iovec_size
+.http_v: resb Iovec_size
+endstruc

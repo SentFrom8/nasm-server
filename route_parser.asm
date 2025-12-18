@@ -4,7 +4,7 @@ section .bss
 parsed_path: resb 1024
 
 final_path: resb 1024
-final_path_len: resq 1
+final_path_len resq 1
 
 file_extension_offset: resq 1
 
@@ -13,7 +13,7 @@ invalid_route_iovec resb Iovec_size*2
 section .data
 
 ; creates a string of all valid characters in the path, including the semicolon(59) and the single quote(39)
-valid_route_chars
+valid_route_chars:
 %assign i 0
 %rep 10
 db  48 + i
@@ -40,8 +40,8 @@ error_invalid_route db "[WARN] Invalid or malicious route: "
 error_invalid_route_len equ $ - error_invalid_route
 
 section .text
-extern path_buff, path_len, exit
 global parse_route, final_path, final_path_len
+extern parsed_headers, conn_close
 
 ; converts the requested resource into a valid route
 ; parsing is done in 2 passes, first step is percent decoding, second step removes double slashes and checks for double periods
@@ -51,29 +51,30 @@ global parse_route, final_path, final_path_len
 parse_route:            xor rcx, rcx
                         xor r10, r10
                         xor rsi, rsi
-                        mov rbx, qword [path_len]
+                        mov rbx, qword [parsed_headers + Headers.path + Iovec.iov_len]
+                        mov r15, qword [parsed_headers + Headers.path + Iovec.iov_base]
 
 first_pass_loop:        cmp rcx, rbx
                         jge second_pass
 
-                        mov dl, byte [path_buff + rcx]
+                        mov dl, byte [r15 + rcx]
                         cmp dl, 0x25
                         jne move_to_parsed_buff
 
 decode_percent:         add rcx, 2
                         cmp rcx, rbx
-                        jge invalid_request
+                        jge invalid_route
 
                         xor rdx, rdx
-                        mov al, byte [path_buff + rcx - 1]
+                        mov al, byte [r15 + rcx - 1]
 
-hex_decode_first:       hex_char_to_num get_first_digit, invalid_request
+hex_decode_first:       hex_char_to_num get_first_digit, invalid_route
 
 get_first_digit:        shl al, 4
                         add dl, al
 
-                        mov al, byte [path_buff + rcx]
-hex_decode_second:      hex_char_to_num add_last_digit, invalid_request
+                        mov al, byte [r15 + rcx]
+hex_decode_second:      hex_char_to_num add_last_digit, invalid_route
 
 add_last_digit:         add dl, al
 
@@ -94,7 +95,7 @@ second_pass_loop:       cmp rbx, r10
                         mov rcx, valid_chars_len
                         repne scasb
 
-                        jne invalid_request
+                        jne invalid_route
 
 period_check:           cmp al, 46
                         je handle_period
@@ -106,7 +107,7 @@ slash_check:            cmp al, 47
 
 handle_period:          cmp al, ah
 ;                        je finalize_path
-                        je invalid_request
+                        je invalid_route
 
                         mov qword [file_extension_offset], rdx
 
@@ -131,15 +132,15 @@ move_to_final_buff:     mov byte [final_path + rdx], al
                         ; jmp write_to_buff
 
 parse_finished:         mov qword [final_path_len], rdx
-                        jmp exit
+                        ret
 
-invalid_request:        lea rax, [error_invalid_route]
+invalid_route:          lea rax, [error_invalid_route]
                         mov qword [invalid_route_iovec + Iovec.iov_base], rax
                         mov rax, error_invalid_route_len
                         mov qword [invalid_route_iovec + Iovec.iov_len], rax
-                        lea rax, [path_buff]
+                        mov rax, qword [parsed_headers + Headers.path + Iovec.iov_base]
                         mov qword [invalid_route_iovec + Iovec_size + Iovec.iov_base], rax
-                        mov rax, qword [path_len]
+                        mov rax, qword [parsed_headers + Headers.path + Iovec.iov_len]
                         mov qword [invalid_route_iovec + Iovec_size + Iovec.iov_len], rax
                         mov rax, 20
                         mov rdi, 1
@@ -147,6 +148,6 @@ invalid_request:        lea rax, [error_invalid_route]
                         mov rdx, 16
                         syscall
                         mov rdi, r13
-                        ; call conn_close
-                        jmp exit
+                        call conn_close
+                        ret
                         

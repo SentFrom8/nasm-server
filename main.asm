@@ -1,7 +1,6 @@
 section .bss
 %include "structs.inc"
 
-
 sockaddr: resb 16
 
 epoll_event: resb Epoll_event_size
@@ -49,9 +48,9 @@ _start:             mov rax, 41
                     or rsi, 0x800                                               ; SOCK_NONBLOCK flag
                     xor rdx, rdx                                                ; System picks the protocol (TCP for SOCK_STREAM type)
                     syscall                                                     ; sys_socket -> creates the socket
-                    cmp rax, 0                                                  ; if error, print the error and jump to end
+                    cmp rax, 0                                                  ; if error, print_literal the error and jump to end
                     jge bind
-                    print error_socket, error_socket_len
+                    print_literal error_socket, error_socket_len
                     jmp end
 
 bind:               mov qword [listener_fd], rax
@@ -72,14 +71,14 @@ bind:               mov qword [listener_fd], rax
                     jge listen
                     lea rsi, [error_bind]
                     mov rdx, error_bind_len
-                    print error_bind, error_bind_len
+                    print_literal error_bind, error_bind_len
                     jmp end
 
 listen:             mov rax, 50
                     mov rdi, qword [listener_fd]
                     mov rsi, 128
                     syscall                                                     ; sys_listen -> marks the socket as passive, ready to accept connections
-                    print server_listening, server_listening_len
+                    print_literal server_listening, server_listening_len
 
 epoll:              mov rax, 291
                     xor rdi, rdi
@@ -99,7 +98,7 @@ listener_epoll:     mov rdi, rax                                                
                     syscall                                                     ; sys_epoll_ctl -> adds the listener socket to the watch list
                     cmp rax, 0
                     jge timer_create
-                    print error_listener_epoll, error_listener_epoll_len
+                    print_literal error_listener_epoll, error_listener_epoll_len
                     jmp end
 
 timer_create:       mov rax, 283
@@ -130,7 +129,7 @@ epoll_wait:         mov rax, 232
                     jge event_loop
                     lea rsi, [error_epoll_wait]
                     mov rdx, error_epoll_wait_len
-                    print error_epoll_wait, error_epoll_wait_len
+                    print_literal error_epoll_wait, error_epoll_wait_len
                     jmp end
 
 event_loop:         cmp r12, 0                                                  ; Handles requests back to front. This introduces a bias towards later events per batch, but it's equally unfair

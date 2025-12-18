@@ -63,7 +63,7 @@ epoll_wlist:        mov r15, rax
                     mov rdi, qword [rbx]
                     mov rax, 3
                     syscall                                 ; sys_exit -> If the connection can't be added to the epoll, close it
-                    print error_using_client, error_using_client_len
+                    print_literal error_using_client, error_using_client_len
                     jmp accept_loop
 
 get_clock_time:     get_time rbx + Client.time
@@ -79,7 +79,7 @@ get_clock_time:     get_time rbx + Client.time
                     syscall
                     lea rsi, [error_using_client]
                     mov rdx, error_using_client_len
-                    print error_using_client, error_using_client_len
+                    print_literal error_using_client, error_using_client_len
                     jmp accept_loop
 
 timer_start:        call update_timer
@@ -95,10 +95,10 @@ accept_error:       cmp rax, -11                            ; EAGAIN/EWOULDBLOCK
 
                     jmp event_loop
 
-acc_err_print:      print error_accept, error_accept_len
+acc_err_print:      print_literal error_accept, error_accept_len
                     jmp accept_loop
 
 
-listener_epollhup:  print error_listener, error_listener_length
+listener_epollhup:  print_literal error_listener, error_listener_length
                     jmp event_loop
 

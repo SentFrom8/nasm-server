@@ -5,10 +5,18 @@
                         syscall                                     ; sys_clock_gettime -> gets the current clock time from the epoch and writes it into the address at %1 
 %endmacro
 
-%macro print 2
+%macro print_literal    2
                         mov rax, 1
                         mov rdi, 1
                         lea rsi, [%1]
+                        mov rdx, %2
+                        syscall
+%endmacro
+
+%macro print_addr       2
+                        mov rax, 1
+                        mov rdi, 1
+                        mov rsi, %1
                         mov rdx, %2
                         syscall
 %endmacro

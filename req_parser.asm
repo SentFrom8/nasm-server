@@ -1,12 +1,10 @@
+%include "defines.inc"
+
 section .bss
 %include "structs.inc"
 parsed_headers: resb Headers_size
 
 section .data
-
-%define MAX_METHOD_LEN 10
-%define MAX_PATH_LEN 1024
-%define MAX_HTTPV_LEN 10
 
 section .text
 global parsed_headers, parse_req

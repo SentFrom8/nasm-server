@@ -1,0 +1,5 @@
+%define MAX_METHOD_LEN 10
+%define MAX_PATH_LEN 1024
+%define MAX_HTTPV_LEN 10
+
+%define MAX_NUM_LEN 20

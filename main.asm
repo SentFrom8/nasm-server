@@ -1,7 +1,20 @@
+%include "defines.inc"
+
 section .bss
 %include "structs.inc"
 
 sockaddr: resb 16
+
+uid_map_buff: resb 25
+gid_map_buff: resb 25
+
+uid_pointer: resq 1
+uid_buff: resb MAX_NUM_LEN
+uid_len: resq 1
+
+gid_pointer: resq 1
+gid_buff: resb MAX_NUM_LEN
+gid_len: resq 1
 
 epoll_event: resb Epoll_event_size
 epoll_return: resb Epoll_event_size*248
@@ -15,7 +28,25 @@ listener_fd: resq 1
 epoll_fd: resq 1
 timer_fd resq 1
 
+section .rodata
+
+setgroups db "/proc/self/setgroups", 0
+uid_map db "/proc/self/uid_map", 0
+gid_map db "/proc/self/gid_map", 0
+
 section .data
+
+setgroups_value db "deny"
+setgroups_value_len equ $ - setgroups_value
+
+uid_map_buff_len dq 0
+gid_map_buff_len dq 0
+
+inside_id_str db "0 "
+inside_id_str_len equ $ - inside_id_str
+
+id_map_len_str db " 1", 10
+id_map_len_str_len equ $ - id_map_len_str
 
 server_listening db "[SERVER] Listening on 0.0.0.0:8080", 10
 server_listening_len equ $ - server_listening
@@ -35,14 +66,133 @@ error_epoll_wait_len equ $ - error_epoll_wait
 section .text
 
 global _start, event_loop, epoll_wait, epoll_event, listener_fd, epoll_fd, timer_fd, clients, client_req_buffer, client_req_limit, connection_timer_seconds
-extern handle_req, listener_event, timer_event, client_event
+extern handle_req, listener_event, timer_event, client_event, i_to_s
 
 %include "macros.inc"
+
+;	CLONE_FILES: 1024
+;	CLONE_FS: 512
+;	CLONE_NEWNS: 131072
+;	CLONE_NEWPID: 536870912
+;	CLONE_NEWUSER: 268435456
 
 ; The server uses an epoll to handle file descriptors
 ; epoll emits an event when an fd is ready for an operation
 
-_start:             mov rax, 41
+_start:             xor r13, r13
+
+                    lea rdi, [uid_map_buff]
+                    lea rsi, [inside_id_str]
+                    mov rcx, inside_id_str_len
+                    add r13, rcx
+                    rep movsb
+
+                    mov r12, rdi
+
+                    mov rax, 102
+                    syscall                                                     ; sys_getuid -> gets the user id
+
+                    mov rdi, rax
+                    lea rsi, [uid_buff]
+                    lea rdx, [uid_len]
+                    call i_to_s
+
+                    mov rdi, r12
+                    mov rsi, rax
+                    mov rcx, qword [uid_len]
+                    add r13, rcx
+                    rep movsb
+
+                    lea rsi, [id_map_len_str]
+                    mov rcx, id_map_len_str_len
+                    add r13, rcx
+                    rep movsb
+
+                    mov qword [uid_map_buff_len], r13
+
+mk_gid_buff:        xor r13, r13
+
+                    lea rdi, [gid_map_buff]
+                    lea rsi, [inside_id_str]
+                    mov rcx, inside_id_str_len
+                    add r13, rcx
+                    rep movsb
+
+                    mov r12, rdi
+
+                    mov rax, 104
+                    syscall                                                     ; sys_getuid -> gets the user id
+
+                    mov rdi, rax
+                    lea rsi, [gid_buff]
+                    lea rdx, [gid_len]
+                    call i_to_s
+
+                    mov rdi, r12
+                    mov rsi, rax
+                    mov rcx, qword [gid_len]
+                    add r13, rcx
+                    rep movsb
+
+                    lea rsi, [id_map_len_str]
+                    mov rcx, id_map_len_str_len
+                    add r13, rcx
+                    rep movsb
+
+                    mov qword [gid_map_buff_len], r13
+
+unshare:            mov rax, 272
+                    mov rdi, 131072
+                    or rdi, 268435456
+                    syscall                                                     ; sys_unshare -> unshares the mount and the user namespace, so that the server is isolated and can act as root
+
+deny_setgroups:     mov rax, 2
+                    lea rdi, [setgroups]
+                    mov rsi, 1                                                  ; O_WRONLY flag
+                    mov rdx, 0
+                    syscall                                                     ; sys_open
+
+                    mov rdi, rax
+                    mov rax, 1
+                    lea rsi, [setgroups_value]
+                    mov rdx, setgroups_value_len
+                    syscall                                                     ; sys_write -> this prevents users from being able to call setgroups, security feature
+
+                    mov rax, 3
+                    syscall                                                     ; sys_close
+
+map_uid:            mov rax, 2
+                    lea rdi, [uid_map]
+                    mov rsi, 2                                                  ; 1: O_WRONLY 2: O_RDWR
+                    mov rdx, 0
+                    syscall                                                     ; sys_open
+
+                    mov rdi, rax
+                    mov rax, 1
+                    lea rsi, [uid_map_buff]
+                    mov rdx, qword [uid_map_buff_len]
+                    syscall                                                     ; sys_write
+
+                    mov rax, 3
+                    syscall                                                     ; sys_close
+
+
+map_gid:            mov rax, 2
+                    lea rdi, [gid_map]
+                    mov rsi, 2                                                  ; 1: O_WRONLY 2: O_RDWR
+                    mov rdx, 0
+                    syscall                                                     ; sys_open
+
+                    mov rdi, rax
+                    mov rax, 1
+                    lea rsi, [gid_map_buff]
+                    mov rdx, qword [gid_map_buff_len]
+                    syscall                                                     ; sys_write
+
+                    mov rax, 3
+                    syscall
+
+socket:             mov rax, 41
                     mov rdi, 2                                                  ; IPv4 family (AF_INET)
                     mov rsi, 1                                                  ; SOCK_STREAM type
                     or rsi, 0x800                                               ; SOCK_NONBLOCK flag

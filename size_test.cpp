@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/mount.h>
+#include <linux/limits.h>
 
 int main(){
 	std::cout << "Size of size_t: " << sizeof(std::size_t) << '\n';
@@ -17,6 +18,8 @@ int main(){
 	std::cout << "Value of MS_PRIVATE: " << MS_PRIVATE << '\n';
 	std::cout << "Value of MS_REC: " << MS_REC << '\n';
 	std::cout << "Value of MS_BIND: " << MS_BIND << '\n';
+	std::cout << "Value of MS_RDONLY: " << MS_RDONLY << '\n';
 	std::cout << "Value of MNT_DETACH: " << MNT_DETACH << '\n';
+	std::cout << "Value of PATH_MAX: " << PATH_MAX << '\n';
 	return 0;
 }

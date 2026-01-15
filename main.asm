@@ -74,7 +74,7 @@ error_epoll_wait_len equ $ - error_epoll_wait
 
 section .text
 
-global _start, event_loop, epoll_wait, epoll_event, listener_fd, epoll_fd, timer_fd, clients, client_req_buffer, client_req_limit, connection_timer_seconds
+global _start, event_loop, epoll_wait, epoll_event, listener_fd, epoll_fd, timer_fd, clients, client_req_buffer, client_req_limit, connection_timer_seconds, end
 extern handle_req, listener_event, timer_event, client_event, i_to_s, jail
 
 %include "macros.inc"

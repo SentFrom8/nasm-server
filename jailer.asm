@@ -1,27 +1,30 @@
+%include "defines.inc"
+
 ; mount flags
+%define MS_RDONLY 1
 %define MS_BIND 4096
-%define MS_PRIVATE 262144
 %define MS_REC 16384
+%define MS_PRIVATE 262144
 
 ; umount flags
 %define MNT_DETACH 2
 
 section .bss
-cwd_buff: resb 100
-cwd_buff_len equ $ - cwd_buff
+cwd_buff: resb PATH_MAX
 
-old_path_buff: resb 120
-old_path_buff_len equ $ - old_path_buff
-
-test_buff: resb 100
-test_buff_len equ $ - test_buff
+old_path_buff: resb PATH_MAX
 
 section .data
 root_mp db "/", 0
 old_root db "/old", 0
+old_root_len equ $ - old_root
+
+proc db "proc", 0
+proc_path db "/proc", 0
 
 section .text
 global jail
+extern end
 
 
 jail:               
@@ -36,8 +39,12 @@ propagation_off:            mov rax, 165
 
 mount_self:                 mov rax, 79
                             lea rdi, cwd_buff
-                            mov rsi, cwd_buff_len
+                            mov rsi, PATH_MAX
                             syscall                                             ; sys_getcwd -> fetches the current working directory, to be bind mounted to itself
+
+                            add rax, old_root_len
+                            cmp rax, PATH_MAX
+                            jg end
 
                             mov rax, 165
                             lea rdi, cwd_buff
@@ -75,7 +82,7 @@ copy_old_loop:              mov bl, byte [rdi + rcx]
 mk_old_dir:                 mov rax, 83
                             lea rdi, old_path_buff
                             mov rsi, 0o777
-                            syscall
+                            syscall                                             ; sys_mkdir -> creates ./old
 
 
 pivot_root:                 mov rax, 155

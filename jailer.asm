@@ -42,6 +42,9 @@ mount_self:                 mov rax, 79
                             mov rsi, PATH_MAX
                             syscall                                             ; sys_getcwd -> fetches the current working directory, to be bind mounted to itself
 
+                            cmp rax, 0
+                            jl end
+
                             add rax, old_root_len
                             cmp rax, PATH_MAX
                             jg end

@@ -1,4 +1,7 @@
 %include "defines.inc"
+%include "epoll_defines.inc"
+%include "socket_defines.inc"
+%include "timer_defines.inc"
 
 ; unshare flags
 %define	CLONE_FILES 1024
@@ -6,8 +9,6 @@
 %define	CLONE_NEWNS 131072
 %define	CLONE_NEWPID 536870912
 %define	CLONE_NEWUSER 268435456
-
-; epoll flags
 
 section .bss
 %include "structs.inc"
@@ -74,7 +75,8 @@ error_epoll_wait_len equ $ - error_epoll_wait
 
 section .text
 
-global _start, event_loop, epoll_wait, epoll_event, listener_fd, epoll_fd, timer_fd, clients, client_req_buffer, client_req_limit, connection_timer_seconds, end
+global _start, event_loop, epoll_wait, epoll_event, listener_fd, epoll_fd, timer_fd, \
+        clients, client_req_buffer, client_req_limit, connection_timer_seconds, end
 extern handle_req, listener_event, timer_event, client_event, i_to_s, jail
 
 %include "macros.inc"
@@ -201,8 +203,8 @@ map_gid:            mov rax, 2
 
 socket:             mov rax, 41
                     mov rdi, 2                                                  ; IPv4 family (AF_INET)
-                    mov rsi, 1                                                  ; SOCK_STREAM type
-                    or rsi, 0x800                                               ; SOCK_NONBLOCK flag
+                    mov rsi, SOCK_STREAM
+                    or rsi, SOCK_NONBLOCK
                     xor rdx, rdx                                                ; System picks the protocol (TCP for SOCK_STREAM type)
                     syscall                                                     ; sys_socket -> creates the socket
                     cmp rax, 0                                                  ; if error, print_literal the error and jump to end
@@ -244,11 +246,11 @@ epoll:              mov rax, 291
 
 listener_epoll:     mov rdi, rax                                                ; epoll fd
                     mov rax, 233                            
-                    mov rsi, 1                                                  ; operation: listener_epoll_ADD
+                    mov rsi, EPOLL_CTL_ADD
                     mov rdx, qword [listener_fd]                                ; socket fd
-                    mov ebx, 0x1                                                ; EPOLLIN for incoming connections
-                    or ebx, 0x8                                                 ; EPOLLERR if the fd errors
-                    or ebx, 0x10                                                ; EPOLLHUP if there is an issue with the fd or the network stack
+                    mov ebx, EPOLLIN                                            ; for incoming connections
+                    or ebx, EPOLLERR                                            ; if the fd errors
+                    or ebx, EPOLLHUP                                            ; if there is an issue with the fd or the network stack
                     mov dword [epoll_event], ebx                                ; Event flag numbers can be found in /usr/include/x86_64-linux-gnu/sys/epoll.h
                     mov qword [epoll_event + Epoll_event.info], rdx             ; FD in data for later use
                     lea r10, [epoll_event]                 
@@ -259,10 +261,9 @@ listener_epoll:     mov rdi, rax                                                
                     jmp end
 
 timer_create:       mov rax, 283
-                    mov rdi, 1                                                  ; clock_monotonic
+                    mov rdi, CLOCK_MONOTONIC                                    ; clock_monotonic
                     xor rdi, rdi
-                    mov rsi, 0x800                                              ; sets the sock_nonblock and sock_cloexec flags
-                    or rsi, 0x80000
+                    mov rsi, TFD_NONBLOCK
                     syscall                                                     ; sys_timerfd_create -> creates a timer with a file descriptor
 
 timer_epoll:        mov qword [timer_fd], rax

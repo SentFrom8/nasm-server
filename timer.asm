@@ -1,3 +1,5 @@
+%include "timer_defines.inc"
+
 section .bss
 %include "structs.inc"
 
@@ -25,7 +27,7 @@ get_client_time:            mov rax, qword [heap]
 
 set_time_call:              mov rax, 286
                             mov rdi, qword [timer_fd]
-                            mov rsi, 1                                                  ; TFD_TIMER_ABSTIME flag, sets the timer to an absolute time instead of relative
+                            mov rsi, TFD_TIMER_ABSTIME                                  ; sets the timer to an absolute time instead of relative
                             lea rdx, [itimerspec]
                             mov r10, 0
                             syscall                                                     ; sys_timerfd_settime -> sets the timer to the absolute time of the first element in the heap

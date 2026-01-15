@@ -1,3 +1,4 @@
+%include "epoll_defines.inc"
 section .bss
 
 section .data
@@ -13,20 +14,20 @@ section .text
 global client_event
 extern listener_fd, event_loop, conn_close, handle_req
 
-client_event:                   test r14d, 0x8                                              ; Check for errors
+client_event:                   test r14d, EPOLLERR                                         ; Check for errors
                                 jz client_hup
                                 print_literal error_client_epoll, error_client_epoll_len
                                 jmp client_error
 
-client_hup:                     test r14d, 0x10                                             ; Check for hangup
+client_hup:                     test r14d, EPOLLHUP                                         ; Check for hangup
                                 jnz print_hup
-                                test r14d, 0x2000                                           ; Check for half-close
+                                test r14d, EPOLLRDHUP                                       ; Check for half-close
                                 jnz print_hup
 
-client_read_write:              test r14d, 0x1
+client_read_write:              test r14d, EPOLLIN
                                 jnz handle_req
 
-                                test r14d, 0x4
+                                test r14d, EPOLLOUT
                                 jmp event_loop
                                 ;jnz handle_res
 

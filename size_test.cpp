@@ -3,6 +3,9 @@
 #include <fcntl.h>
 #include <sys/mount.h>
 #include <linux/limits.h>
+#include <sys/socket.h>
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
 
 int main(){
 	std::cout << "Size of size_t: " << sizeof(std::size_t) << '\n';
@@ -21,5 +24,20 @@ int main(){
 	std::cout << "Value of MS_RDONLY: " << MS_RDONLY << '\n';
 	std::cout << "Value of MNT_DETACH: " << MNT_DETACH << '\n';
 	std::cout << "Value of PATH_MAX: " << PATH_MAX << '\n';
+	std::cout << "Value of SOCK_STREAM: " << SOCK_STREAM << '\n';
+	std::cout << "Value of SOCK_NONBLOCK: " << SOCK_NONBLOCK << '\n';
+	std::cout << "Value of SOCK_NONBLOCK: " << SOCK_NONBLOCK << '\n';
+	std::cout << "Value of EPOLLIN: " << EPOLLIN << '\n';
+	std::cout << "Value of EPOLLOUT: " << EPOLLOUT << '\n';
+	std::cout << "Value of EPOLLERR: " << EPOLLERR << '\n';
+	std::cout << "Value of EPOLLHUP: " << EPOLLHUP << '\n';
+	std::cout << "Value of EPOLLRDHUP: " << EPOLLRDHUP << '\n';
+	std::cout << "Value of CLOCK_MONOTONIC: " << CLOCK_MONOTONIC << '\n';
+	std::cout << "Value of TFD_NONBLOCK: " << TFD_NONBLOCK << '\n';
+	std::cout << "Value of TFD_TIMER_ABSTIME: " << TFD_TIMER_ABSTIME << '\n';
+	std::cout << "Value of EPOLL_CTL_ADD: " << EPOLL_CTL_ADD << '\n';
+	std::cout << "Value of EPOLL_CTL_MOD: " << EPOLL_CTL_MOD << '\n';
+	std::cout << "Value of EPOLL_CTL_DEL: " << EPOLL_CTL_DEL << '\n';
+
 	return 0;
 }

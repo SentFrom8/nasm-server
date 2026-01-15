@@ -1,3 +1,6 @@
+%include "epoll_defines.inc"
+%include "socket_defines.inc"
+
 section .bss
 %include "structs.inc"
 
@@ -21,8 +24,11 @@ extern clients, epoll_fd, event_loop, listener_fd, epoll_event, mh_push, update_
 
 %include "macros.inc"
 
-listener_event:     test r14d, 0x001                          
-                    jz listener_epollhup                    ; if not a connecting socket, or a timer, handle the request
+listener_event:     test r14d, EPOLLERR
+                    jnz listener_epollhup
+
+                    test r14d, EPOLLHUP
+                    jnz listener_epollhup
 
 ; when there is an accept event, accepts all incoming connections
 accept_loop:        mov rax, 288
@@ -30,8 +36,7 @@ accept_loop:        mov rax, 288
                     lea rsi, [usr_sockaddr]
                     mov dword [upeer_addrlen], 16
                     lea rdx, [upeer_addrlen]
-                    mov r10, 0x800                          ; SOCK_NONBLOCK
-                    or r10, 0x80000                         ; SOCK_CLOEXEC closes the socket when any exec family functions are called. Not strictly necessary
+                    mov r10, SOCK_NONBLOCK
                     syscall                                 ; sys_accept4 -> same as accept but allows flags to be set
                     cmp rax, 0
                     jl accept_error
@@ -49,11 +54,11 @@ epoll_wlist:        mov r15, rax
                     mov rdi, qword [epoll_fd]
                     mov rax, 233
                     mov rsi, 1
-                    mov r13d, 0x1
-                    or r13d, 0x4                            ; EPOLLOUT for the server response
-                    or r13d, 0x8
-                    or r13d, 0x10
-                    or r13d, 0x2000                         ; EPOLLRDHUP if the client half-closes
+                    mov r13d, EPOLLIN
+                    or r13d, EPOLLOUT
+                    or r13d, EPOLLERR
+                    or r13d, EPOLLHUP
+                    or r13d, EPOLLRDHUP                      ; EPOLLRDHUP if the client half-closes
                     mov dword [epoll_event + Epoll_event.flags], r13d
                     mov qword [epoll_event + Epoll_event.info], rbx
                     lea r10, [epoll_event]

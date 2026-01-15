@@ -1,0 +1,9 @@
+; epoll flags
+%define EPOLLIN 1
+%define EPOLLOUT 4
+%define EPOLLERR 8
+%define EPOLLHUP 16
+%define EPOLLRDHUP 8192
+%define EPOLL_CTL_ADD 1
+%define EPOLL_CTL_DEL 2
+%define EPOLL_CTL_MOD 3

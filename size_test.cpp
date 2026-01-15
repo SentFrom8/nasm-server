@@ -1,6 +1,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/mount.h>
 
 int main(){
 	std::cout << "Size of size_t: " << sizeof(std::size_t) << '\n';
@@ -13,5 +14,9 @@ int main(){
 	std::cout << '\t' << "CLONE_NEWUSER: " << CLONE_NEWUSER << '\n';
 	std::cout << "Value of O_WRONLY: " << O_WRONLY << '\n';
 	std::cout << "Value of O_RDWR: " << O_RDWR << '\n';
+	std::cout << "Value of MS_PRIVATE: " << MS_PRIVATE << '\n';
+	std::cout << "Value of MS_REC: " << MS_REC << '\n';
+	std::cout << "Value of MS_BIND: " << MS_BIND << '\n';
+	std::cout << "Value of MNT_DETACH: " << MNT_DETACH << '\n';
 	return 0;
 }

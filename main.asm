@@ -1,5 +1,14 @@
 %include "defines.inc"
 
+; unshare flags
+%define	CLONE_FILES 1024
+%define	CLONE_FS 512
+%define	CLONE_NEWNS 131072
+%define	CLONE_NEWPID 536870912
+%define	CLONE_NEWUSER 268435456
+
+; epoll flags
+
 section .bss
 %include "structs.inc"
 
@@ -66,15 +75,11 @@ error_epoll_wait_len equ $ - error_epoll_wait
 section .text
 
 global _start, event_loop, epoll_wait, epoll_event, listener_fd, epoll_fd, timer_fd, clients, client_req_buffer, client_req_limit, connection_timer_seconds
-extern handle_req, listener_event, timer_event, client_event, i_to_s
+extern handle_req, listener_event, timer_event, client_event, i_to_s, jail
 
 %include "macros.inc"
 
-;	CLONE_FILES: 1024
-;	CLONE_FS: 512
-;	CLONE_NEWNS: 131072
-;	CLONE_NEWPID: 536870912
-;	CLONE_NEWUSER: 268435456
+
 
 ; The server uses an epoll to handle file descriptors
 ; epoll emits an event when an fd is ready for an operation
@@ -142,8 +147,8 @@ mk_gid_buff:        xor r13, r13
                     mov qword [gid_map_buff_len], r13
 
 unshare:            mov rax, 272
-                    mov rdi, 131072
-                    or rdi, 268435456
+                    mov rdi, CLONE_NEWNS 
+                    or rdi, CLONE_NEWUSER
                     syscall                                                     ; sys_unshare -> unshares the mount and the user namespace, so that the server is isolated and can act as root
 
 deny_setgroups:     mov rax, 2
@@ -191,6 +196,8 @@ map_gid:            mov rax, 2
 
                     mov rax, 3
                     syscall
+
+                    call jail
 
 socket:             mov rax, 41
                     mov rdi, 2                                                  ; IPv4 family (AF_INET)

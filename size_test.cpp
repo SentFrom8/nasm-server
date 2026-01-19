@@ -9,7 +9,7 @@
 
 int main(){
 	std::cout << "Size of size_t: " << sizeof(std::size_t) << '\n';
-	std::cout << "Size of unshare flags" << sizeof(CLONE_FILES) << '\n';
+	std::cout << "Size of unshare flags: " << sizeof(CLONE_FILES) << '\n';
 	std::cout << "Value of unshare flags: "  << '\n';
 	std::cout << '\t' << "CLONE_FILES: " << CLONE_FILES << '\n';
 	std::cout << '\t' << "CLONE_FS: " << CLONE_FS << '\n';

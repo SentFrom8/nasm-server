@@ -28,8 +28,7 @@ client_read_write:              test r14d, EPOLLIN
                                 jnz handle_req
 
                                 test r14d, EPOLLOUT
-                                jmp event_loop
-                                ;jnz handle_res
+                                jnz handle_res
 
 print_hup:                      print_literal client_epollhup, client_epollhup_len
 

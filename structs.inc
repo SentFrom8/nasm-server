@@ -34,3 +34,8 @@ struc Headers
 .path: resb Iovec_size
 .http_v: resb Iovec_size
 endstruc
+
+struc Extension_link
+.extension: resb Iovec_size
+.content_type: resb Iovec_size
+endstruc

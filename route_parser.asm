@@ -1,10 +1,9 @@
 section .bss
 %include "structs.inc"
+%include "defines.inc"
 
-parsed_path: resb 1024
-
-final_path: resb 1024
-final_path_len resq 1
+final_path: resb PATH_MAX
+final_path_len: resq 1
 
 file_extension_offset: resq 1
 
@@ -43,95 +42,104 @@ section .text
 global parse_route, final_path, final_path_len
 extern parsed_headers, conn_close
 
-; converts the requested resource into a valid route
-; parsing is done in 2 passes, first step is percent decoding, second step removes double slashes and checks for double periods
+; percent decodes, validates each character and stores the index of the last period
 
 %include "macros.inc"
 
-parse_route:            xor rcx, rcx
+parse_route:            xor rsi, rsi
                         xor r10, r10
                         xor rsi, rsi
-                        mov rbx, qword [parsed_headers + Headers.path + Iovec.iov_len]
-                        mov r15, qword [parsed_headers + Headers.path + Iovec.iov_base]
+                        mov r8, qword [parsed_headers + Headers.path + Iovec.iov_base]
+                        mov r9, qword [parsed_headers + Headers.path + Iovec.iov_len]
 
-first_pass_loop:        cmp rcx, rbx
-                        jge second_pass
+first_pass_loop:        cmp rsi, r9
+                        jge parse_finished
 
-                        mov dl, byte [r15 + rcx]
-                        cmp dl, 0x25
-                        jne move_to_parsed_buff
+                        mov al, byte [r8 + rsi]
+                        cmp al, 0x25
+                        jne validate_char
 
-decode_percent:         add rcx, 2
-                        cmp rcx, rbx
+decode_percent:         add rsi, 2
+                        cmp rsi, r9
                         jge invalid_route
 
                         xor rdx, rdx
-                        mov al, byte [r15 + rcx - 1]
+                        mov dl, byte [r8 + rsi - 1]
 
 hex_decode_first:       hex_char_to_num get_first_digit, invalid_route
 
-get_first_digit:        shl al, 4
-                        add dl, al
+get_first_digit:        shl dl, 4
+                        add al, dl
 
-                        mov al, byte [r15 + rcx]
+                        mov dl, byte [r8 + rsi]
 hex_decode_second:      hex_char_to_num add_last_digit, invalid_route
 
-add_last_digit:         add dl, al
+add_last_digit:         add al, dl
 
-move_to_parsed_buff:    mov byte [parsed_path + r10], dl
-                        inc rcx
+validate_char:          lea rdi, [valid_route_chars]
+                        mov rcx, valid_chars_len
+                        repne scasb
+                        jne invalid_route
+
+                        cmp al, 46
+                        jne move_to_final_buff
+
+                        mov qword [file_extension_offset], r10
+
+move_to_final_buff:     mov byte [final_path + r10], al
+                        inc rsi
                         inc r10
                         jmp first_pass_loop
 
-second_pass:            xor rbx, rbx
-                        xor rax, rax
-                        xor rdx, rdx
+; second_pass:            xor rbx, rbx
+;                         xor rax, rax
+;                         xor rdx, rdx
 
-second_pass_loop:       cmp rbx, r10
-                        jge parse_finished
-                        mov ah, al
-                        mov al, byte [parsed_path + rbx]
-                        lea rdi, [valid_route_chars]
-                        mov rcx, valid_chars_len
-                        repne scasb
+; second_pass_loop:       cmp rbx, r10
+;                         jge parse_finished
+;                         mov ah, al
+;                         mov al, byte [parsed_path + rbx]
+;                         lea rdi, [valid_route_chars]
+;                         mov rcx, valid_chars_len
+;                         repne scasb
 
-                        jne invalid_route
+;                         jne invalid_route
 
-period_check:           cmp al, 46
-                        je handle_period
+; period_check:           cmp al, 46
+;                         je handle_period
 
-slash_check:            cmp al, 47
-                        je handle_slash
+; slash_check:            cmp al, 47
+;                         je handle_slash
 
-                        jmp move_to_final_buff
+;                         jmp move_to_final_buff
 
-handle_period:          cmp al, ah
-;                        je finalize_path
-                        je invalid_route
+; handle_period:          cmp al, ah
+; ;                        je finalize_path
+;                         je invalid_route
 
-                        mov qword [file_extension_offset], rdx
+;                         mov qword [file_extension_offset], rdx
 
-                        jmp move_to_final_buff
+;                         jmp move_to_final_buff
 
 
-handle_slash:           cmp al, ah
-                        jne move_to_final_buff
+; handle_slash:           cmp al, ah
+;                         jne move_to_final_buff
 
-                        inc rbx
-                        jmp second_pass_loop
+;                         inc rbx
+;                         jmp second_pass_loop
 
-move_to_final_buff:     mov byte [final_path + rdx], al
-                        inc rbx
-                        inc rdx
-                        jmp second_pass_loop
+; move_to_final_buff:     mov byte [final_path + rdx], al
+;                         inc rbx
+;                         inc rdx
+;                         jmp second_pass_loop
 
-                        ; mov dh, 1
-                        ; sub rax, 2
-                        ; mov qword [file_extension_offset], rax
-                        ; add rax, 2
-                        ; jmp write_to_buff
+;                         ; mov dh, 1
+;                         ; sub rax, 2
+;                         ; mov qword [file_extension_offset], rax
+;                         ; add rax, 2
+;                         ; jmp write_to_buff
 
-parse_finished:         mov qword [final_path_len], rdx
+parse_finished:         mov qword [final_path_len], r10
                         ret
 
 invalid_route:          lea rax, [error_invalid_route]

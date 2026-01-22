@@ -12,7 +12,7 @@ client_epollhup_len equ $ - client_epollhup
 section .text
 %include "macros.inc"
 global client_event
-extern listener_fd, event_loop, conn_close, handle_req
+extern listener_fd, event_loop, conn_close, handle_req, handle_res
 
 client_event:                   test r14d, EPOLLERR                                         ; Check for errors
                                 jz client_hup

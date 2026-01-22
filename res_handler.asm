@@ -16,7 +16,8 @@ file_offset_buff: resq 1
 
 section .rodata
 ; contains a mime_table array of Extension_link elements
-#include "mime_table.inc"
+%include "mime_table.inc"
+
 
 mime_table_len equ ($ - mime_table) / Extension_link_size
 

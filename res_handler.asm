@@ -47,7 +47,7 @@ error_write_len equ $ - error_write
 
 section .text
 global handle_res
-extern connection_status, final_path, final_path_len, print, epoll_wait, event_loop, client_cls, file_extension_offset
+extern connection_status, final_path, final_path_len, print, epoll_wait, event_loop, invalid_request, file_extension_offset, stat_buff
 
 last_digit:     div r15
                 add rdx, 0x30
@@ -58,20 +58,26 @@ last_digit:     div r15
                 jne last_digit
                 ret
 
-handle_res:     cmp [r13 + Client.flags], 1
-                jne event_loop
+handle_res:     test [r13 + Client.flags], 1
+                jnz event_loop
+
+                test [r13 + Client.flags], 8
+                jnz file_open
 
                 xor r15, r15
                 xor rdx, rdx
 
 mime_lookup:    cmp r15, mime_table_len
-                jge client_cls
+                jge invalid_request
                 mov rax, r15
-                imul rax, mime_table_len
+                imul rax, Extension_link_size
                 mov rdi, qword [mime_table + rax + Extension_link.extension + Iovec.iov_base]
-                mov rsi, qword [file_extension]
-                mov rcx, qword [file_extension_len]
+                lea rsi, [final_path + file_extension_offset]
+                mov rcx, qword [final_path_len]
+                sub rcx, file_extension_offset
+                cmovl rcx, qword [mime_table + rax + Extension_link.extension + Iovec.iov_len]
                 repe cmpsb
+
                 je save_mime_type
                 inc r15
                 jmp mime_lookup
@@ -79,25 +85,9 @@ mime_lookup:    cmp r15, mime_table_len
 save_mime_type: lea r15, [mime_table + rax]
                 mov qword [mime_type], r15
 
-file_open:      mov rax, 2
-                lea rdi, [path_buff]
-                mov rsi, 0
-                mov rdx, 577
-                syscall                                 ; sys_open -> opens the requested file in read only mode
-                cmp rax, 0
-                jge file_fstat
-                lea rsi, [error_invalid_file]
-                mov rdx, error_invalid_file_len
-                call print
-                jmp client_cls
+file_open:      call handle_file
 
-file_fstat:     mov qword [file_fd], rax
-                mov rdi, rax
-                mov rax, 5
-                lea rsi, [fstat_buff]
-                syscall                                 ; sys_fstat -> gives us the size of the file for the content-length header
-
-file_size_str:  mov rax, qword [rsi + 48]
+file_size_str:  mov rax, qword [stat_buff + Stat.st_size]
                 mov r15, 10
                 mov rcx, 9
                 mov byte [digits_str_buff + rcx], 10
@@ -193,7 +183,7 @@ file_cls:       mov rax, 3
                 mov rdi, qword [file_fd]
                 syscall
 
-                jmp client_cls
+                jmp invalid_request
 
 ; file_read:      mov qword [file_fd], rax
 ;                 mov rdi, rax

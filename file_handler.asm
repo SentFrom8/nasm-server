@@ -20,7 +20,7 @@ index db "index.html", 0
 
 section .text
 
-global handle_file
+global handle_file, stat_buff
 extern invalid_request
 
 ; Receives the null terminated path at *rdi
@@ -39,11 +39,12 @@ fstat:              mov rdi, rax
                     lea rsi, [stat_buff]
                     syscall                                                 ; sys_fstat -> gets the data about the file, which allows us to determine the type and cache it
 
-is_dir:             mov eax, dword [stat_buff + Stat.st_mode]
-                    and eax, S_IFMT
-                    cmp eax, S_IFDIR
+is_dir:             mov r8d, dword [stat_buff + Stat.st_mode]
+                    and r8d, S_IFMT
+                    cmp r8d, S_IFDIR
                     jne is_symlink
 
+                    mov rax, 257
                     lea rsi, [index]
                     mov rdx, O_RDONLY
                     mov r10, 0
@@ -62,16 +63,19 @@ is_dir:             mov eax, dword [stat_buff + Stat.st_mode]
                     lea rsi, [stat_buff]
                     syscall                                                 ; sys_fstat -> calls fstat for the newly opened index.html file
 
-                    mov eax, dword [stat_buff + Stat.st_mode]
-                    and eax, S_IFMT
+                    mov r8d, dword [stat_buff + Stat.st_mode]
+                    and r8d, S_IFMT
 
-is_symlink:         cmp eax, S_IFLNK
-                    jne is_regular
+is_symlink:         cmp r8d, S_IFLNK
+                    je return_file
 
-is_regular:         cmp eax, S_IFREG
-                    jne invalid_request
+is_regular:         cmp r8d, S_IFREG
+                    je return_file
 
-                    mov qword [file_fd], r9
+                    jmp invalid_request
+
+return_file:        mov qword [file_fd], r9
+                    mov rax, r9
 
                     ret
 

@@ -1,7 +1,7 @@
 section .bss
 
 section .data
-route db "/", 0
+route db "./", 0
 
 section .text
 global _start

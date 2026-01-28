@@ -2,6 +2,7 @@
 %include "epoll_defines.inc"
 %include "socket_defines.inc"
 %include "timer_defines.inc"
+%include "open_defines.inc"
 
 ; unshare flags
 %define	CLONE_FILES 1024
@@ -155,7 +156,7 @@ unshare:            mov rax, 272
 
 deny_setgroups:     mov rax, 2
                     lea rdi, [setgroups]
-                    mov rsi, 1                                                  ; O_WRONLY flag
+                    mov rsi, O_WRONLY
                     mov rdx, 0
                     syscall                                                     ; sys_open
 
@@ -170,7 +171,7 @@ deny_setgroups:     mov rax, 2
 
 map_uid:            mov rax, 2
                     lea rdi, [uid_map]
-                    mov rsi, 2                                                  ; 1: O_WRONLY 2: O_RDWR
+                    mov rsi, O_RDWR
                     mov rdx, 0
                     syscall                                                     ; sys_open
 

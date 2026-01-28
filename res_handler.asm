@@ -18,7 +18,6 @@ section .rodata
 ; contains a mime_table array of Extension_link elements
 %include "mime_table.inc"
 
-
 mime_table_len equ ($ - mime_table) / Extension_link_size
 
 section .data
@@ -48,7 +47,7 @@ error_write_len equ $ - error_write
 
 section .text
 global handle_res
-extern connection_status, path_buff, print, epoll_wait, event_loop, client_cls, file_extension, file_extension_len
+extern connection_status, final_path, final_path_len, print, epoll_wait, event_loop, client_cls, file_extension_offset
 
 last_digit:     div r15
                 add rdx, 0x30
@@ -59,16 +58,17 @@ last_digit:     div r15
                 jne last_digit
                 ret
 
-handle_res:     cmp qword [file_extension_len], 0
-                jle client_cls
+handle_res:     cmp [r13 + Client.flags], 1
+                jne event_loop
+
                 xor r15, r15
                 xor rdx, rdx
 
 mime_lookup:    cmp r15, mime_table_len
                 jge client_cls
                 mov rax, r15
-                imul rax, 24            
-                mov rdi, qword [mime_table + rax]
+                imul rax, mime_table_len
+                mov rdi, qword [mime_table + rax + Extension_link.extension + Iovec.iov_base]
                 mov rsi, qword [file_extension]
                 mov rcx, qword [file_extension_len]
                 repe cmpsb

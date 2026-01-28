@@ -2,7 +2,7 @@ section .bss
 %include "structs.inc"
 %include "defines.inc"
 
-final_path: resb PATH_MAX
+final_path: resb PATH_MAX + 1                                   ; File paths are null terminated so it has to account for the terminator
 final_path_len: resq 1
 
 file_extension_offset: resq 1
@@ -39,7 +39,7 @@ error_invalid_route db "[WARN] Invalid or malicious route: "
 error_invalid_route_len equ $ - error_invalid_route
 
 section .text
-global parse_route, final_path, final_path_len
+global parse_route, final_path, final_path_len, file_extension_offset
 extern parsed_headers, conn_close
 
 ; percent decodes, validates each character and stores the index of the last period
@@ -139,7 +139,8 @@ move_to_final_buff:     mov byte [final_path + r10], al
 ;                         ; add rax, 2
 ;                         ; jmp write_to_buff
 
-parse_finished:         mov qword [final_path_len], r10
+parse_finished:         mov byte [final_path_len + r10], 0
+                        mov qword [final_path_len], r10
                         ret
 
 invalid_route:          lea rax, [error_invalid_route]

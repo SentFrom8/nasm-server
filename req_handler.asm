@@ -32,12 +32,6 @@ global handle_req, invalid_request
 extern client_cls, handle_res, client_req_buffer, conn_close, reset_timer, \
        event_loop, client_req_limit, parse_req, parse_route
 
-; IMPORTANT! There is a buffer overflow here if index.html is appended when there is no room for it in the buffer
-; write better path size logic
-; use an offset for the extension
-; actually, consider using fstat, checking if it's a folder and appending /index.html if it is
-; should handle partial requests
-; client should have a flag if it's ready to receive a response
 
 handle_req:             mov rax, 0
                         mov rdi, qword [r13]

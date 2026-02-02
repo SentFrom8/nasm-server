@@ -1,3 +1,6 @@
+%include "defines.inc"
+%include "macros.inc"
+
 section .bss
 %include "structs.inc"
 
@@ -7,10 +10,11 @@ digits_buffer_len: resq 1
 fstat_buff: resb 144
 
 file_fd: resq 1
+file_size_str_buff: resb MAX_NUM_LEN
 
 mime_type: resq 1
 
-iovec_buff: resb 16*3
+headers_iovec: resb 16*3
 
 file_offset_buff: resq 1
 
@@ -22,6 +26,12 @@ mime_table_len equ ($ - mime_table) / Extension_link_size
 
 section .data
 
+file_size_iovec:
+        istruc Iovec
+                at .iov_base, dq file_size_str_buff
+                at .iov_len, dq 0
+        iend
+
 headers db "HTTP/1.1 200 OK", 13, 10
         db "Connection: close", 13, 10
         db "Content-Type: "
@@ -30,6 +40,9 @@ headers_len equ $ - headers
 
 content_len_header db 13, 10, "Content-Length: "
 content_len_header_len equ $ - content_len_header
+
+index_content_type db "text/html"
+index_content_type_len equ $ - index_content_type
 
 optval_cork dd 1
 optval_uncork dd 0
@@ -47,7 +60,7 @@ error_write_len equ $ - error_write
 
 section .text
 global handle_res
-extern connection_status, final_path, final_path_len, print, epoll_wait, event_loop, invalid_request, file_extension_offset, stat_buff
+extern connection_status, final_path, final_path_len, print, epoll_wait, event_loop, invalid_request, file_extension_offset, stat_buff, i_to_s, handle_file
 
 last_digit:     div r15
                 add rdx, 0x30
@@ -58,10 +71,10 @@ last_digit:     div r15
                 jne last_digit
                 ret
 
-handle_res:     test [r13 + Client.flags], 1
+handle_res:     test dword [r13 + Client.flags], 1
                 jnz event_loop
 
-                test [r13 + Client.flags], 8
+                test dword [r13 + Client.flags], 8
                 jnz file_open
 
                 xor r15, r15
@@ -72,10 +85,11 @@ mime_lookup:    cmp r15, mime_table_len
                 mov rax, r15
                 imul rax, Extension_link_size
                 mov rdi, qword [mime_table + rax + Extension_link.extension + Iovec.iov_base]
-                lea rsi, [final_path + file_extension_offset]
+                lea rsi, [final_path]
+                add rsi, qword [file_extension_offset]
                 mov rcx, qword [final_path_len]
                 sub rcx, file_extension_offset
-                cmovl rcx, qword [mime_table + rax + Extension_link.extension + Iovec.iov_len]
+                cmovl rcx, qword [mime_table + rax + Extension_link.extension + Iovec.iov_len]                                  ; Works under the assumption that the cpu supports conditional move
                 repe cmpsb
 
                 je save_mime_type
@@ -87,45 +101,35 @@ save_mime_type: lea r15, [mime_table + rax]
 
 file_open:      call handle_file
 
-file_size_str:  mov rax, qword [stat_buff + Stat.st_size]
-                mov r15, 10
-                mov rcx, 9
-                mov byte [digits_str_buff + rcx], 10
-                dec rcx
-                mov byte [digits_str_buff + rcx], 13
-                dec rcx
-                mov byte [digits_str_buff + rcx], 10
-                dec rcx
-                mov byte [digits_str_buff + rcx], 13
-                dec rcx
-                xor rdx, rdx
-                call last_digit                         ; Converts the length returned from the read syscall to a string and writes it to a buffer
+file_size_str:  mov edi, dword [stat_buff + Stat.st_size]
+                lea rsi, [file_size_iovec]
+                call i_to_s
 
 mk_iovec:       lea r15, [headers]
-                mov qword [iovec_buff + 0*8], r15
+                mov qword [headers_iovec + 0*8], r15
 
                 mov r15, headers_len
-                mov qword [iovec_buff + 1*8], r15
+                mov qword [headers_iovec + 1*8], r15
 
                 mov r15, qword [mime_type]
                 mov rax, qword [r15 + 8]
-                mov qword [iovec_buff + 2*8], rax
+                mov qword [headers_iovec + 2*8], rax
 
                 mov r15d, dword [r15 + 20]
-                mov qword [iovec_buff + 3*8], r15
+                mov qword [headers_iovec + 3*8], r15
 
                 lea r15, [content_len_header]
-                mov qword [iovec_buff + 4*8], r15
+                mov qword [headers_iovec + 4*8], r15
 
                 mov r15, content_len_header_len
-                mov qword [iovec_buff + 5*8], r15
+                mov qword [headers_iovec + 5*8], r15
 
                 lea r15, [digits_str_buff + rcx + 1]
-                mov qword [iovec_buff + 6*8], r15
+                mov qword [headers_iovec + 6*8], r15
 
                 mov r15, 9
                 sub r15, rcx
-                mov qword [iovec_buff + 7*8], r15
+                mov qword [headers_iovec + 7*8], r15
 
 cork:           mov rax, 54
                 mov rdi, r13
@@ -144,14 +148,12 @@ cork:           mov rax, 54
 ;                 syscall                                 ; Testing only! Sets the SO_SNDBUF option to 16kb where level is SOL_SOCKET(1) and optname is SO_SNDBUF(7)
 
 writev:         mov rax, 20
-                lea rsi, [iovec_buff]
+                lea rsi, [headers_iovec]
                 mov rdx, 4
                 syscall                                 ; sys_writev -> writes an array of buffers (I/O vector)
                 cmp rax, 0
                 jge prep_args
-                lea rsi, [error_write]
-                mov rdx, error_write_len
-                call print
+                print_literal error_write, error_write_len
                 jmp file_cls
 
 prep_args:      xor r15, r15
@@ -217,41 +219,41 @@ file_cls:       mov rax, 3
 ;                 call last_digit                         ; Converts the length returned from the read syscall to a string and writes it to a buffer
 
 ; mk_iovec:       lea r15, [headers]
-;                 mov qword [iovec_buff + 0*8], r15
+;                 mov qword [headers_iovec + 0*8], r15
 
 ;                 mov r15, headers_len
-;                 mov qword [iovec_buff + 1*8], r15
+;                 mov qword [headers_iovec + 1*8], r15
 
 ;                 mov r15, qword [mime_type]
 ;                 mov rax, qword [r15 + 8]
-;                 mov qword [iovec_buff + 2*8], rax
+;                 mov qword [headers_iovec + 2*8], rax
 
 ;                 mov r15d, dword [r15 + 20]
-;                 mov qword [iovec_buff + 3*8], r15
+;                 mov qword [headers_iovec + 3*8], r15
 
 ;                 lea r15, [content_len_header]
-;                 mov qword [iovec_buff + 4*8], r15
+;                 mov qword [headers_iovec + 4*8], r15
 
 ;                 mov r15, content_len_header_len
-;                 mov qword [iovec_buff + 5*8], r15
+;                 mov qword [headers_iovec + 5*8], r15
 
 ;                 lea r15, [digits_str_buff + rcx + 1]
-;                 mov qword [iovec_buff + 6*8], r15
+;                 mov qword [headers_iovec + 6*8], r15
 
 ;                 mov r15, 9
 ;                 sub r15, rcx
-;                 mov qword [iovec_buff + 7*8], r15
+;                 mov qword [headers_iovec + 7*8], r15
 
 ;                 lea r15, [file_content]
-;                 mov qword [iovec_buff + 8*8], r15
+;                 mov qword [headers_iovec + 8*8], r15
 
 ;                 mov r15, qword [file_content_len]
-;                 mov qword [iovec_buff + 9*8], r15
+;                 mov qword [headers_iovec + 9*8], r15
 
 
 ; reply:          mov rdi, r13
 ;                 mov rax, 20
-;                 lea rsi, [iovec_buff]
+;                 lea rsi, [headers_iovec]
 ;                 mov rdx, 5
 ;                 syscall                                 ; sys_writev -> writes an array of buffers (I/O vector)
 ;                 cmp rax, 0

@@ -21,7 +21,7 @@ index db "index.html", 0
 section .text
 
 global handle_file, stat_buff
-extern invalid_request
+extern invalid_request, stat_buff
 
 ; Receives the null terminated path at *rdi
 handle_file:        mov rax, 2
@@ -58,6 +58,8 @@ is_dir:             mov r8d, dword [stat_buff + Stat.st_mode]
                     cmp r9, 0
                     jl not_found
 
+
+
                     mov rax, 5
                     mov rdi, r9
                     lea rsi, [stat_buff]
@@ -79,5 +81,5 @@ return_file:        mov qword [file_fd], r9
 
                     ret
 
-not_found:          jmp invalid_request
+not_found:          jmp invalid_request                                     ; 404 should be handled here
 

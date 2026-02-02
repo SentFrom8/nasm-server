@@ -19,13 +19,8 @@ sockaddr: resb 16
 uid_map_buff: resb 25
 gid_map_buff: resb 25
 
-uid_pointer: resq 1
 uid_buff: resb MAX_NUM_LEN
-uid_len: resq 1
-
-gid_pointer: resq 1
 gid_buff: resb MAX_NUM_LEN
-gid_len: resq 1
 
 epoll_event: resb Epoll_event_size
 epoll_return: resb Epoll_event_size*248
@@ -52,6 +47,19 @@ setgroups_value_len equ $ - setgroups_value
 
 uid_map_buff_len dq 0
 gid_map_buff_len dq 0
+
+uid_iovec:
+        istruc Iovec
+                at .iov_base, dq uid_buff
+                at .iov_len, dq 0
+        iend
+
+gid_iovec:
+        istruc Iovec
+                at .iov_base, dq gid_buff
+                at .iov_len, dq 0
+        iend
+
 
 inside_id_str db "0 "
 inside_id_str_len equ $ - inside_id_str
@@ -87,6 +95,12 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail
 ; The server uses an epoll to handle file descriptors
 ; epoll emits an event when an fd is ready for an operation
 
+; Todos: 
+; should handle partial requests
+; Should check nested function and jumps inside functions. Each function must return in all cases
+; Should return 404 for files not found
+
+
 _start:             xor r13, r13
 
                     lea rdi, [uid_map_buff]
@@ -101,13 +115,12 @@ _start:             xor r13, r13
                     syscall                                                     ; sys_getuid -> gets the user id
 
                     mov rdi, rax
-                    lea rsi, [uid_buff]
-                    lea rdx, [uid_len]
+                    lea rsi, [uid_iovec]
                     call i_to_s
 
                     mov rdi, r12
-                    mov rsi, rax
-                    mov rcx, qword [uid_len]
+                    mov rsi, qword [uid_iovec + Iovec.iov_base]
+                    mov rcx, qword [uid_iovec + Iovec.iov_len]
                     add r13, rcx
                     rep movsb
 
@@ -132,13 +145,12 @@ mk_gid_buff:        xor r13, r13
                     syscall                                                     ; sys_getuid -> gets the user id
 
                     mov rdi, rax
-                    lea rsi, [gid_buff]
-                    lea rdx, [gid_len]
+                    lea rsi, [gid_iovec]
                     call i_to_s
 
                     mov rdi, r12
-                    mov rsi, rax
-                    mov rcx, qword [gid_len]
+                    mov rsi, qword [gid_iovec + Iovec.iov_base]
+                    mov rcx, qword [gid_iovec + Iovec.iov_len]
                     add r13, rcx
                     rep movsb
 

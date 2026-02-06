@@ -41,7 +41,7 @@ accept_loop:        mov rax, 288
                     cmp rax, 0
                     jl accept_error
 
-epoll_wlist:        mov r15, rax
+annul_client:       mov r15, rax
                     mov rcx, Client_size
                     mul rcx
                     lea rbx, [clients + rax]
@@ -49,7 +49,7 @@ epoll_wlist:        mov r15, rax
                     xor rax, rax
                     rep stosb                               ; zeroes out the client struct
 
-                    mov qword [rbx], r15
+epoll_wlist:        mov qword [rbx], r15
                     mov rdx, r15
                     mov rdi, qword [epoll_fd]
                     mov rax, 233
@@ -78,7 +78,7 @@ get_clock_time:     get_time rbx + Client.time
                     call mh_push
                     cmp rax, 0
                     je timer_start
-                    jg event_loop
+                    jg req_pointer
                     mov rdi, qword [rbx]
                     mov rax, 3
                     syscall

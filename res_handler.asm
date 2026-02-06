@@ -62,20 +62,15 @@ section .text
 global handle_res
 extern connection_status, final_path, final_path_len, print, epoll_wait, event_loop, invalid_request, file_extension_offset, stat_buff, i_to_s, handle_file
 
-last_digit:     div r15
-                add rdx, 0x30
-                mov byte [digits_str_buff + rcx], dl
-                xor rdx, rdx
-                dec rcx
-                cmp rax, 0
-                jne last_digit
-                ret
+handle_res:     test dword [r13 + Client.flags], READY_FOR_RES
+                jz event_loop
 
-handle_res:     test dword [r13 + Client.flags], 1
-                jnz event_loop
+                lea rdi, [final_path]
+                call handle_file
+                mov qword [r13 + Client.req_file_fd], rax
 
-                test dword [r13 + Client.flags], 8
-                jnz file_open
+                test dword [r13 + Client.flags], REQUESTING_INDEX
+                jnz file_size_str
 
                 xor r15, r15
                 xor rdx, rdx
@@ -98,8 +93,6 @@ mime_lookup:    cmp r15, mime_table_len
 
 save_mime_type: lea r15, [mime_table + rax]
                 mov qword [mime_type], r15
-
-file_open:      call handle_file
 
 file_size_str:  mov edi, dword [stat_buff + Stat.st_size]
                 lea rsi, [file_size_iovec]

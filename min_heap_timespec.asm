@@ -22,12 +22,15 @@ global mh_push, mh_bubble, mh_remove, heap, heap_size
 %endmacro
 
 ; compares the element at index rdi to its smaller child
+; returns the heap index of the child if it exists, -1 if it doesn't
 %macro cmp_smaller_child 0
                         mov rax, rdi
                         shl rax, 1
                         inc rax
                         cmp eax, dword [heap_size]
                         jl %%has_right_child
+
+                        mov rax, -1
                         ret
 
 %%has_right_child:      lea r10, [heap + rax*8]
@@ -61,7 +64,9 @@ global mh_push, mh_bubble, mh_remove, heap, heap_size
 %endmacro
 
 ; Swaps places of elements at indices rdi, rax. Also changes the heap_index value for each element
-swap_places:            mov r10, qword [heap + rdi*8]
+swap_places:            cmp rax, rdi
+                        je skip_swap
+                        mov r10, qword [heap + rdi*8]
                         mov r8, qword [heap + rax*8]
 
                         mov dword [r10 + Client.heap_index], eax
@@ -69,15 +74,17 @@ swap_places:            mov r10, qword [heap + rdi*8]
 
                         mov qword [heap + rdi*8], r8
                         mov qword [heap + rax*8], r10
-                        ret
+skip_swap:              ret
 
-; Pushes the client in [RDI] to the heap
+; Pushes the client pointer in RDI to the heap and updates the heap_index of the client
+; Returns the index of the newly pushed element
+
 mh_push:                cmp dword [heap_size], 0
                         je push
                         
                         mov eax, dword [heap_size]
                         dec eax
-                        shr eax, 1 
+                        shr eax, 1
                         mov rax, qword [heap + eax*8]
                         mov r10, qword [rax + Client.time + Timespec.seconds]
                         cmp r10, qword [rdi + Client.time + Timespec.seconds]
@@ -130,7 +137,6 @@ mh_bubble:              cmp rdi, 0
                         jg cmp_parent_init
                         jmp mh_bubble_down
                         
-
 
 cmp_parent_init:        cmp_parent
                         jl mh_bubble_up_loop

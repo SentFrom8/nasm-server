@@ -1,3 +1,4 @@
+%include "defines.inc"
 %include "open_defines.inc"
 
 %define S_IFMT 0o170000
@@ -12,7 +13,6 @@
 
 section .bss
 %include "structs.inc"
-file_fd: resq 1
 stat_buff: resb Stat_size
 
 section .data
@@ -58,7 +58,8 @@ is_dir:             mov r8d, dword [stat_buff + Stat.st_mode]
                     cmp r9, 0
                     jl not_found
 
-
+                    mov rax, REQUESTING_INDEX
+                    or dword [r13 + Client.flags], eax
 
                     mov rax, 5
                     mov rdi, r9
@@ -76,9 +77,7 @@ is_regular:         cmp r8d, S_IFREG
 
                     jmp invalid_request
 
-return_file:        mov qword [file_fd], r9
-                    mov rax, r9
-
+return_file:        mov rax, r9
                     ret
 
 not_found:          jmp invalid_request                                     ; 404 should be handled here

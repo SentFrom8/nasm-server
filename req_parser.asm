@@ -59,7 +59,7 @@ final_checks:           mov rax, qword [parsed_headers + Headers.method + Iovec.
                         cmp rax, 0
                         je invalid_request
 
-                        mov rax, qword [parsed_headers + Headers.path + Iovec.iov_len]
+                        mov rax, qword [parsed_headers + Headers.http_v + Iovec.iov_len]
                         cmp rax, MAX_HTTPV_LEN
                         jg invalid_request
 

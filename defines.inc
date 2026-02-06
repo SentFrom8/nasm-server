@@ -5,3 +5,7 @@
 %define MAX_NUM_LEN 20
 
 %define PATH_MAX 4096
+
+; Client defines
+%define READY_FOR_RES 1
+%define REQUESTING_INDEX 8

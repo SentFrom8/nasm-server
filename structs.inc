@@ -12,6 +12,7 @@ struc Client
 .fd: resq 1
 .read_buff: resq 1
 .req_len: resq 1
+.req_file_fd: resq 1
 .res_sent: resq 1
 .res_total: resq 1
 .time: resb Timespec_size

@@ -26,7 +26,7 @@ epoll_event: resb Epoll_event_size
 epoll_return: resb Epoll_event_size*248
 
 client_req_limit equ 4096
-clients: resb Client_size * 4096                                                ; flags: 1 - timer, 2 - listener, 4 - ready_to_write
+clients: resb Client_size * 4096
 client_req_buffer: resb 8192 * client_req_limit
 connection_timer_seconds equ 15
 
@@ -99,7 +99,8 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail
 ; should handle partial requests
 ; Should check nested function and jumps inside functions. Each function must return in all cases
 ; Should return 404 for files not found
-
+; there is a bug where the end of the request is never found and the function loops indefinitely, which likely causes the timer to expire
+; the connection header should be handled
 
 _start:             xor r13, r13
 

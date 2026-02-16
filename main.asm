@@ -28,7 +28,6 @@ epoll_return: resb Epoll_event_size*248
 client_req_limit equ 4096
 clients: resb Client_size * 4096
 client_req_buffer: resb 8192 * client_req_limit
-connection_timer_seconds equ 15
 
 listener_fd: resq 1
 epoll_fd: resq 1
@@ -101,6 +100,7 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail
 ; Should return 404 for files not found
 ; there is a bug where the end of the request is never found and the function loops indefinitely, which likely causes the timer to expire
 ; the connection header should be handled
+; the expired timer must be read
 
 _start:             xor r13, r13
 

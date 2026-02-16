@@ -1,3 +1,5 @@
+%include "defines.inc"
+
 section .bss
 %include "structs.inc"
 
@@ -8,7 +10,12 @@ global conn_close
 extern heap, mh_remove, update_timer
 
 ; closes the connection at *RDI
-conn_close:                 mov r9, rdi
+conn_close:                 test dword [rdi + Client.flags], SOCKET_CLOSED
+                            jz update_heap
+                            ret
+
+
+update_heap:                mov r9, rdi
                             mov edi, dword [rdi + Client.heap_index]
                             mov rdx, rdi
                             call mh_remove
@@ -18,7 +25,8 @@ conn_close:                 mov r9, rdi
                             call update_timer
 
 sys_close:                  mov rax, 3
-                            mov rdi, qword [r9]                                    ; sys_close -> closes the client socket, this frees up the FD
+                            mov rdi, qword [r9 + Client.fd]                                    ; sys_close -> closes the client socket, this frees up the FD
                             syscall
+                            or dword [r9 + Client.flags], SOCKET_CLOSED
                             ret
                             

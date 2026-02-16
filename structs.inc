@@ -17,7 +17,7 @@ struc Client
 .res_total: resq 1
 .time: resb Timespec_size
 .heap_index: resd 1
-.flags: resd 1                                          ; 1: Request parsed 8: Skip mime lookup
+.flags: resd 1                                          ; 1: Request parsed, 8: Skip mime lookup, 16: Socket closed
 endstruc
 
 struc Itimerspec
@@ -40,42 +40,6 @@ struc Extension_link
 .extension: resb Iovec_size
 .content_type: resb Iovec_size
 endstruc
-
-; struc Stat
-; .st_dev: resq 1
-; .st_ino: resq 1
-; .st_mode: resd 1
-; .st_nlink: resq 1
-; .st_uid: resd 1
-; .st_gid: resd 1
-; .st_rdev: resq 1
-; .st_size: resq 1
-; .st_blksize: resq 1
-; .st_blocks: resq 1
-; .st_atim: resb Timespec_size
-; .st_mtim: resb Timespec_size
-; .st_ctim: resb Timespec_size
-; endstruc
-
-; struc Stat
-;     .st_dev:        resq 1
-;     .st_ino:        resq 1
-;     .st_mode:       resd 1
-;     .st_nlink:      resd 1
-;     .st_uid:        resd 1
-;     .st_gid:        resd 1
-;     .st_rdev:       resq 1
-;     .__pad1:        resq 1
-;     .st_size:       resq 1
-;     .st_blksize:    resd 1
-;     .__pad2:        resd 1
-;     .st_blocks:     resq 1
-;     .st_atim:       resb Timespec_size
-;     .st_mtim:       resb Timespec_size
-;     .st_ctim:       resb Timespec_size
-;     .__unused4:     resd 1
-;     .__unused5:     resd 1
-; endstruc
 
 struc Stat
     .st_dev:        resq 1

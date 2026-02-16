@@ -35,7 +35,7 @@ set_time_call:              mov rax, 286
 
 ; resets the timer of the element *r13 and bubbles it. The syscall clobbers rdi so might as well be r13
 reset_timer:                get_time r13 + Client.time
-                            add qword [r13 + Client.time + Timespec.seconds], connection_timer_seconds
+                            add qword [r13 + Client.time + Timespec.seconds], SECONDS_PER_CLIENT
                             mov edi, dword [r13 + Client.heap_index]
                             call mh_bubble
                             call update_timer

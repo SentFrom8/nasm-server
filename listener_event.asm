@@ -1,5 +1,6 @@
 %include "epoll_defines.inc"
 %include "socket_defines.inc"
+%include "timer_defines.inc"
 
 section .bss
 %include "structs.inc"
@@ -20,7 +21,7 @@ error_using_client_len equ $ - error_using_client
 
 section .text
 global listener_event
-extern clients, epoll_fd, event_loop, listener_fd, epoll_event, mh_push, update_timer, client_req_buffer, connection_timer_seconds
+extern clients, epoll_fd, event_loop, listener_fd, epoll_event, mh_push, update_timer, client_req_buffer
 
 %include "macros.inc"
 
@@ -72,7 +73,7 @@ epoll_wlist:        mov qword [rbx], r15
                     jmp accept_loop
 
 get_clock_time:     get_time rbx + Client.time
-                    add qword [rbx + Client.time + Timespec.seconds], connection_timer_seconds
+                    add qword [rbx + Client.time + Timespec.seconds], SECONDS_PER_CLIENT
 
                     mov rdi, rbx
                     call mh_push

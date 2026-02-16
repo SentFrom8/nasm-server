@@ -21,7 +21,7 @@ index db "index.html", 0
 section .text
 
 global handle_file, stat_buff
-extern invalid_request, stat_buff
+extern invalid_request
 
 ; Receives the null terminated path at *rdi
 handle_file:        mov rax, 2

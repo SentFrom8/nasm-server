@@ -66,6 +66,6 @@ final_checks:           mov rax, qword [parsed_headers + Headers.method + Iovec.
                         cmp rax, 0
                         je invalid_request
 
-                        mov qword [r13 + Client.flags], 1
+                        mov dword [r13 + Client.flags], 1
 
                         ret

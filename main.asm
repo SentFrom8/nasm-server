@@ -98,9 +98,9 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail
 ; should handle partial requests
 ; Should check nested function and jumps inside functions. Each function must return in all cases
 ; Should return 404 for files not found
-; there is a bug where the end of the request is never found and the function loops indefinitely, which likely causes the timer to expire
 ; the connection header should be handled
 ; the expired timer must be read
+; writev is not suitable for headers, a single string must be constructed
 
 _start:             xor r13, r13
 

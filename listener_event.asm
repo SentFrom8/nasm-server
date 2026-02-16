@@ -41,6 +41,7 @@ accept_loop:        mov rax, 288
                     syscall                                 ; sys_accept4 -> same as accept but allows flags to be set
                     cmp rax, 0
                     jl accept_error
+                    je zero_client
 
 annul_client:       mov r15, rax
                     mov rcx, Client_size
@@ -107,4 +108,6 @@ acc_err_print:      print_literal error_accept, error_accept_len
 
 listener_epollhup:  print_literal error_listener, error_listener_length
                     jmp event_loop
+
+zero_client:        jmp annul_client
 

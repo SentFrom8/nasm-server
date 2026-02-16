@@ -139,7 +139,7 @@ move_to_final_buff:     mov byte [final_path + r10], al
 ;                         ; add rax, 2
 ;                         ; jmp write_to_buff
 
-parse_finished:         mov byte [final_path_len + r10], 0
+parse_finished:         mov byte [final_path + r10], 0
                         mov qword [final_path_len], r10
                         ret
 

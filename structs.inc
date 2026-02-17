@@ -1,44 +1,46 @@
+%define SIGSET_T_SIZE 8
+
 struc Epoll_event
-.flags: resd 1
-.info: resq 1
+    .flags: resd 1
+    .info: resq 1
 endstruc
 
 struc Timespec
-.seconds: resq 1
-.nanoseconds: resq 1
+    .seconds: resq 1
+    .nanoseconds: resq 1
 endstruc
 
 struc Client
-.fd: resq 1
-.read_buff: resq 1
-.req_len: resq 1
-.req_file_fd: resq 1
-.res_file_sent: resq 1
-.res_total: resq 1
-.time: resb Timespec_size
-.heap_index: resd 1
-.flags: resd 1                                          ; 1: Request parsed, 4: Sending file, 8: Skip mime lookup, 16: Socket closed
+    .fd: resq 1
+    .read_buff: resq 1
+    .req_len: resq 1
+    .req_file_fd: resq 1
+    .res_file_sent: resq 1
+    .res_total: resq 1
+    .time: resb Timespec_size
+    .heap_index: resd 1
+    .flags: resd 1                                          ; 1: Request parsed, 4: Sending file, 8: Skip mime lookup, 16: Socket closed
 endstruc
 
 struc Itimerspec
-.interval: resb Timespec_size
-.value: resb Timespec_size
+    .interval: resb Timespec_size
+    .value: resb Timespec_size
 endstruc
 
 struc Iovec
-.iov_base: resq 1                                       ; pointer to the beginning of the string
-.iov_len: resq 1                                        ; size of the string
+    .iov_base: resq 1                                       ; pointer to the beginning of the string
+    .iov_len: resq 1                                        ; size of the string
 endstruc
 
 struc Headers
-.method: resb Iovec_size
-.path: resb Iovec_size
-.http_v: resb Iovec_size
+    .method: resb Iovec_size
+    .path: resb Iovec_size
+    .http_v: resb Iovec_size
 endstruc
 
 struc Extension_link
-.extension: resb Iovec_size
-.content_type: resb Iovec_size
+    .extension: resb Iovec_size
+    .content_type: resb Iovec_size
 endstruc
 
 struc Stat
@@ -57,4 +59,11 @@ struc Stat
     .st_atim:       resb Timespec_size
     .st_mtim:       resb Timespec_size
     .st_ctim:       resb Timespec_size
+endstruc
+
+struc Sigaction
+    .sa_function resq 1                                 ; void (*sa_handler)(int) | void (*sa_sigaction)(int, siginfo_t*, void*), if SA_SIGINFO is passed to sa_flags, sa_sigaction is used
+    .sa_flags resq 1
+    .sa_restorer resq 1
+    .sa_mask resb SIGSET_T_SIZE
 endstruc

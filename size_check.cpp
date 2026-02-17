@@ -7,6 +7,7 @@
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #include <sys/stat.h>
+#include <signal.h>
 
 void enclose_text(std::string text){
 	std::cout << '\n' << std::string(30, '=') << '\n' << text << '\n' << std::string(30, '=') << '\n';
@@ -87,6 +88,22 @@ int main(){
 	std::cout << "Offset of st_mtim: " << offsetof(struct stat, st_mtim) << "\n";
 	std::cout << "Offset of st_ctim: " << offsetof(struct stat, st_ctim) << "\n";
     std::cout << "Size of stat struct: " << sizeof(struct stat) << "\n";
+
+	enclose_text("sigaction struct");
+	std::cout << "Size of sigaction: " << sizeof(struct sigaction) << '\n';
+	std::cout << "Offset of sa_handler: " << offsetof(struct sigaction, sa_handler) << '\n';
+	std::cout << "Offset of sa_sigaction: " << offsetof(struct sigaction, sa_sigaction) << '\n';
+	std::cout << "Size of sigset_t: " << sizeof(sigset_t) << '\n';
+	std::cout << "Offset of sa_mask: " << offsetof(struct sigaction, sa_mask) << '\n';
+	std::cout << "Offset of sa_flags: " << offsetof(struct sigaction, sa_flags) << '\n';
+	std::cout << "Offset of sa_restorer: " << offsetof(struct sigaction, sa_restorer) << '\n';
+	std::cout << "Value of SIG_DLF: " << SIG_DFL << '\n';
+	std::cout << "Value of SIG_IGN: " << SIG_IGN << '\n';
+	std::cout << "Value of SIGINT: " << SIGINT << '\n';
+	std::cout << "Value of SIGPIPE: " << SIGPIPE << '\n';
+	std::cout << "Value of SA_RESTART: " << SA_RESTART << '\n';
+	std::cout << "Value of SA_SIGINFO: " << SA_SIGINFO << '\n';
+
 
 	return 0;
 }

@@ -3,6 +3,7 @@
 %include "socket_defines.inc"
 %include "timer_defines.inc"
 %include "open_defines.inc"
+%include "signal_defines.inc"
 
 ; unshare flags
 %define	CLONE_FILES 1024
@@ -38,6 +39,21 @@ section .rodata
 setgroups db "/proc/self/setgroups", 0
 uid_map db "/proc/self/uid_map", 0
 gid_map db "/proc/self/gid_map", 0
+
+pipe_action:
+        istruc Sigaction
+                at .sa_function, dq SIG_IGN
+                at .sa_flags, dq SA_RESTORER
+                at .sa_restorer, dq restorer
+        iend
+
+int_action:
+        istruc Sigaction
+                at .sa_function, dq sigint
+                at .sa_flags, dq SA_RESTORER
+                at .sa_restorer, dq restorer
+        iend
+
 
 section .data
 
@@ -85,7 +101,7 @@ section .text
 
 global _start, event_loop, epoll_wait, epoll_event, listener_fd, epoll_fd, timer_fd, \
         clients, client_req_buffer, client_req_limit, connection_timer_seconds, end
-extern handle_req, listener_event, timer_event, client_event, i_to_s, jail
+extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigint, restorer
 
 %include "macros.inc"
 
@@ -102,224 +118,238 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail
 ; the expired timer must be read
 ; writev is not suitable for headers, a single string must be constructed
 
-_start:             xor r13, r13
+_start:         xor r13, r13
 
-                    lea rdi, [uid_map_buff]
-                    lea rsi, [inside_id_str]
-                    mov rcx, inside_id_str_len
-                    add r13, rcx
-                    rep movsb
+                lea rdi, [uid_map_buff]
+                lea rsi, [inside_id_str]
+                mov rcx, inside_id_str_len
+                add r13, rcx
+                rep movsb
 
-                    mov r12, rdi
+                mov r12, rdi
 
-                    mov rax, 102
-                    syscall                                                     ; sys_getuid -> gets the user id
+                mov rax, 102
+                syscall                                                     ; sys_getuid -> gets the user id
 
-                    mov rdi, rax
-                    lea rsi, [uid_iovec]
-                    call i_to_s
+                mov rdi, rax
+                lea rsi, [uid_iovec]
+                call i_to_s
 
-                    mov rdi, r12
-                    mov rsi, qword [uid_iovec + Iovec.iov_base]
-                    mov rcx, qword [uid_iovec + Iovec.iov_len]
-                    add r13, rcx
-                    rep movsb
+                mov rdi, r12
+                mov rsi, qword [uid_iovec + Iovec.iov_base]
+                mov rcx, qword [uid_iovec + Iovec.iov_len]
+                add r13, rcx
+                rep movsb
 
-                    lea rsi, [id_map_len_str]
-                    mov rcx, id_map_len_str_len
-                    add r13, rcx
-                    rep movsb
+                lea rsi, [id_map_len_str]
+                mov rcx, id_map_len_str_len
+                add r13, rcx
+                rep movsb
 
-                    mov qword [uid_map_buff_len], r13
+                mov qword [uid_map_buff_len], r13
 
-mk_gid_buff:        xor r13, r13
+mk_gid_buff:    xor r13, r13
 
-                    lea rdi, [gid_map_buff]
-                    lea rsi, [inside_id_str]
-                    mov rcx, inside_id_str_len
-                    add r13, rcx
-                    rep movsb
+                lea rdi, [gid_map_buff]
+                lea rsi, [inside_id_str]
+                mov rcx, inside_id_str_len
+                add r13, rcx
+                rep movsb
 
-                    mov r12, rdi
+                mov r12, rdi
 
-                    mov rax, 104
-                    syscall                                                     ; sys_getuid -> gets the user id
+                mov rax, 104
+                syscall                                                     ; sys_getuid -> gets the user id
 
-                    mov rdi, rax
-                    lea rsi, [gid_iovec]
-                    call i_to_s
+                mov rdi, rax
+                lea rsi, [gid_iovec]
+                call i_to_s
 
-                    mov rdi, r12
-                    mov rsi, qword [gid_iovec + Iovec.iov_base]
-                    mov rcx, qword [gid_iovec + Iovec.iov_len]
-                    add r13, rcx
-                    rep movsb
+                mov rdi, r12
+                mov rsi, qword [gid_iovec + Iovec.iov_base]
+                mov rcx, qword [gid_iovec + Iovec.iov_len]
+                add r13, rcx
+                rep movsb
 
-                    lea rsi, [id_map_len_str]
-                    mov rcx, id_map_len_str_len
-                    add r13, rcx
-                    rep movsb
+                lea rsi, [id_map_len_str]
+                mov rcx, id_map_len_str_len
+                add r13, rcx
+                rep movsb
 
-                    mov qword [gid_map_buff_len], r13
+                mov qword [gid_map_buff_len], r13
 
-unshare:            mov rax, 272
-                    mov rdi, CLONE_NEWNS 
-                    or rdi, CLONE_NEWUSER
-                    syscall                                                     ; sys_unshare -> unshares the mount and the user namespace, so that the server is isolated and can act as root
+unshare:        mov rax, 272
+                mov rdi, CLONE_NEWNS 
+                or rdi, CLONE_NEWUSER
+                syscall                                                     ; sys_unshare -> unshares the mount and the user namespace, so that the server is isolated and can act as root
 
-deny_setgroups:     mov rax, 2
-                    lea rdi, [setgroups]
-                    mov rsi, O_WRONLY
-                    mov rdx, 0
-                    syscall                                                     ; sys_open
+deny_setgroups: mov rax, 2
+                lea rdi, [setgroups]
+                mov rsi, O_WRONLY
+                mov rdx, 0
+                syscall                                                     ; sys_open
 
-                    mov rdi, rax
-                    mov rax, 1
-                    lea rsi, [setgroups_value]
-                    mov rdx, setgroups_value_len
-                    syscall                                                     ; sys_write -> this prevents users from being able to call setgroups, security feature
+                mov rdi, rax
+                mov rax, 1
+                lea rsi, [setgroups_value]
+                mov rdx, setgroups_value_len
+                syscall                                                     ; sys_write -> this prevents users from being able to call setgroups, security feature
 
-                    mov rax, 3
-                    syscall                                                     ; sys_close
+                mov rax, 3
+                syscall                                                     ; sys_close
 
-map_uid:            mov rax, 2
-                    lea rdi, [uid_map]
-                    mov rsi, O_RDWR
-                    mov rdx, 0
-                    syscall                                                     ; sys_open
+map_uid:        mov rax, 2
+                lea rdi, [uid_map]
+                mov rsi, O_RDWR
+                mov rdx, 0
+                syscall                                                     ; sys_open
 
-                    mov rdi, rax
-                    mov rax, 1
-                    lea rsi, [uid_map_buff]
-                    mov rdx, qword [uid_map_buff_len]
-                    syscall                                                     ; sys_write
+                mov rdi, rax
+                mov rax, 1
+                lea rsi, [uid_map_buff]
+                mov rdx, qword [uid_map_buff_len]
+                syscall                                                     ; sys_write
 
-                    mov rax, 3
-                    syscall                                                     ; sys_close
+                mov rax, 3
+                syscall                                                     ; sys_close
 
 
-map_gid:            mov rax, 2
-                    lea rdi, [gid_map]
-                    mov rsi, 2                                                  ; 1: O_WRONLY 2: O_RDWR
-                    mov rdx, 0
-                    syscall                                                     ; sys_open
+map_gid:        mov rax, 2
+                lea rdi, [gid_map]
+                mov rsi, 2                                                  ; 1: O_WRONLY 2: O_RDWR
+                mov rdx, 0
+                syscall                                                     ; sys_open
 
-                    mov rdi, rax
-                    mov rax, 1
-                    lea rsi, [gid_map_buff]
-                    mov rdx, qword [gid_map_buff_len]
-                    syscall                                                     ; sys_write
+                mov rdi, rax
+                mov rax, 1
+                lea rsi, [gid_map_buff]
+                mov rdx, qword [gid_map_buff_len]
+                syscall                                                     ; sys_write
 
-                    mov rax, 3
-                    syscall
+                mov rax, 3
+                syscall
 
-                    call jail
+                call jail
 
-socket:             mov rax, 41
-                    mov rdi, 2                                                  ; IPv4 family (AF_INET)
-                    mov rsi, SOCK_STREAM
-                    or rsi, SOCK_NONBLOCK
-                    xor rdx, rdx                                                ; System picks the protocol (TCP for SOCK_STREAM type)
-                    syscall                                                     ; sys_socket -> creates the socket
-                    cmp rax, 0                                                  ; if error, print_literal the error and jump to end
-                    jge bind
-                    print_literal error_socket, error_socket_len
-                    jmp end
+set_signals:    mov rax, 13
+                mov rdi, SIGPIPE
+                lea rsi, [pipe_action]
+                xor rdx, rdx
+                mov r10, SIGSET_T_SIZE
+                syscall                                                     ; sys_rt_sigaction -> ignores the SIGPIPE signal so that it can be handled as an error and doesn't crash the server
 
-bind:               mov qword [listener_fd], rax
+                mov rax, 13
+                mov rdi, SIGINT
+                lea rsi, [int_action]
+                xor rdx, rdx
+                mov r10, SIGSET_T_SIZE
+                syscall                                                     ; on SIGINT, close the socket and exit
 
-                    xor rbx, rbx                                                ; Zero out rbx because the address is 0.0.0.0
-                    mov rbx, 0x901F                                             ; The bind syscall expects big endian, so the order of bytes in the number 8080 is reversed
-                    shl rbx, 16                                                 ; Move the port by 16 bits, because the first 16 bits are reserved for the family
-                    add rbx, 2                                                  ; Sets the family to AF_INET
-                    mov qword [sockaddr], rbx       
-                    mov qword [sockaddr + 8], 0                                 ; pads the second qword of the sock_addr struct with zeroes
+socket:         mov rax, 41
+                mov rdi, 2                                                  ; IPv4 family (AF_INET)
+                mov rsi, SOCK_STREAM
+                or rsi, SOCK_NONBLOCK
+                xor rdx, rdx                                                ; System picks the protocol (TCP for SOCK_STREAM type)
+                syscall                                                     ; sys_socket -> creates the socket
+                cmp rax, 0                                                  ; if error, print_literal the error and jump to end
+                jge bind
+                print_literal error_socket, error_socket_len
+                jmp end
 
-                    mov rdi, rax
-                    mov rax, 49
-                    lea rsi, [sockaddr]
-                    mov rdx, 16
-                    syscall                                                     ; sys_bind -> binds the socket to the address
-                    cmp rax, 0
-                    jge listen
-                    lea rsi, [error_bind]
-                    mov rdx, error_bind_len
-                    print_literal error_bind, error_bind_len
-                    jmp end
+bind:           mov qword [listener_fd], rax
 
-listen:             mov rax, 50
-                    mov rdi, qword [listener_fd]
-                    mov rsi, 128
-                    syscall                                                     ; sys_listen -> marks the socket as passive, ready to accept connections
-                    print_literal server_listening, server_listening_len
+                xor rbx, rbx                                                ; Zero out rbx because the address is 0.0.0.0
+                mov rbx, 0x901F                                             ; The bind syscall expects big endian, so the order of bytes in the number 8080 is reversed
+                shl rbx, 16                                                 ; Move the port by 16 bits, because the first 16 bits are reserved for the family
+                add rbx, 2                                                  ; Sets the family to AF_INET
+                mov qword [sockaddr], rbx       
+                mov qword [sockaddr + 8], 0                                 ; pads the second qword of the sock_addr struct with zeroes
 
-epoll:              mov rax, 291
-                    xor rdi, rdi
-                    syscall                                                     ; sys_epoll_create1 -> creates an epoll
-                    mov qword [epoll_fd], rax                                   ; Save epoll fd
+                mov rdi, rax
+                mov rax, 49
+                lea rsi, [sockaddr]
+                mov rdx, 16
+                syscall                                                     ; sys_bind -> binds the socket to the address
+                cmp rax, 0
+                jge listen
+                lea rsi, [error_bind]
+                mov rdx, error_bind_len
+                print_literal error_bind, error_bind_len
+                jmp end
 
-listener_epoll:     mov rdi, rax                                                ; epoll fd
-                    mov rax, 233                            
-                    mov rsi, EPOLL_CTL_ADD
-                    mov rdx, qword [listener_fd]                                ; socket fd
-                    mov ebx, EPOLLIN                                            ; for incoming connections
-                    or ebx, EPOLLERR                                            ; if the fd errors
-                    or ebx, EPOLLHUP                                            ; if there is an issue with the fd or the network stack
-                    mov dword [epoll_event], ebx                                ; Event flag numbers can be found in /usr/include/x86_64-linux-gnu/sys/epoll.h
-                    mov qword [epoll_event + Epoll_event.info], rdx             ; FD in data for later use
-                    lea r10, [epoll_event]                 
-                    syscall                                                     ; sys_epoll_ctl -> adds the listener socket to the watch list
-                    cmp rax, 0
-                    jge timer_create
-                    print_literal error_listener_epoll, error_listener_epoll_len
-                    jmp end
+listen:         mov rax, 50
+                mov rdi, qword [listener_fd]
+                mov rsi, 128
+                syscall                                                     ; sys_listen -> marks the socket as passive, ready to accept connections
+                print_literal server_listening, server_listening_len
 
-timer_create:       mov rax, 283
-                    mov rdi, CLOCK_MONOTONIC                                    ; clock_monotonic
-                    xor rdi, rdi
-                    mov rsi, TFD_NONBLOCK
-                    syscall                                                     ; sys_timerfd_create -> creates a timer with a file descriptor
+epoll:          mov rax, 291
+                xor rdi, rdi
+                syscall                                                     ; sys_epoll_create1 -> creates an epoll
+                mov qword [epoll_fd], rax                                   ; Save epoll fd
 
-timer_epoll:        mov qword [timer_fd], rax
-                    mov dword [epoll_event], 0x1
-                    mov qword [epoll_event + 4], rax
-                    mov rdx, rax
-                    mov rax, 233
-                    mov rdi, qword [epoll_fd]
-                    mov rsi, 1
-                    lea r10, epoll_event
-                    syscall
+listener_epoll: mov rdi, rax                                                ; epoll fd
+                mov rax, 233                            
+                mov rsi, EPOLL_CTL_ADD
+                mov rdx, qword [listener_fd]                                ; socket fd
+                mov ebx, EPOLLIN                                            ; for incoming connections
+                or ebx, EPOLLERR                                            ; if the fd errors
+                or ebx, EPOLLHUP                                            ; if there is an issue with the fd or the network stack
+                mov dword [epoll_event], ebx                                ; Event flag numbers can be found in /usr/include/x86_64-linux-gnu/sys/epoll.h
+                mov qword [epoll_event + Epoll_event.info], rdx             ; FD in data for later use
+                lea r10, [epoll_event]                 
+                syscall                                                     ; sys_epoll_ctl -> adds the listener socket to the watch list
+                cmp rax, 0
+                jge timer_create
+                print_literal error_listener_epoll, error_listener_epoll_len
+                jmp end
 
-epoll_wait:         mov rax, 232
-                    mov rdi, qword [epoll_fd]
-                    lea rsi, [epoll_return]                                     ; buffer for events
-                    mov rdx, 248                                                ; max simultaneous connections, not total
-                    mov r10, 60000                                              ; timeout, set to -1 for permanent
-                    syscall
-                    mov r12, rax                                                ; sys_epoll_wait -> Blocks the thread until there is an EPOLLIN connection or the timeout expires
-                    cmp r12, 0
-                    jge event_loop
-                    lea rsi, [error_epoll_wait]
-                    mov rdx, error_epoll_wait_len
-                    print_literal error_epoll_wait, error_epoll_wait_len
-                    jmp end
+timer_create:   mov rax, 283
+                mov rdi, CLOCK_MONOTONIC                                    ; clock_monotonic
+                xor rdi, rdi
+                mov rsi, TFD_NONBLOCK
+                syscall                                                     ; sys_timerfd_create -> creates a timer with a file descriptor
 
-event_loop:         cmp r12, 0                                                  ; Handles requests back to front. This introduces a bias towards later events per batch, but it's equally unfair
-                    je epoll_wait
+timer_epoll:    mov qword [timer_fd], rax
+                mov dword [epoll_event], 0x1
+                mov qword [epoll_event + 4], rax
+                mov rdx, rax
+                mov rax, 233
+                mov rdi, qword [epoll_fd]
+                mov rsi, 1
+                lea r10, epoll_event
+                syscall
 
-event_handler:      dec r12
-                    mov rax, Epoll_event_size
-                    mul r12
-                    mov r13, qword [epoll_return + rax + 4]
-                    mov r14d, dword [epoll_return + rax]
-                    cmp r13, qword [listener_fd]
-                    je listener_event
+epoll_wait:     mov rax, 232
+                mov rdi, qword [epoll_fd]
+                lea rsi, [epoll_return]                                     ; buffer for events
+                mov rdx, 248                                                ; max simultaneous connections, not total
+                mov r10, 60000                                              ; timeout, set to -1 for permanent
+                syscall
+                mov r12, rax                                                ; sys_epoll_wait -> Blocks the thread until there is an EPOLLIN connection or the timeout expires
+                cmp r12, 0
+                jge event_loop
+                lea rsi, [error_epoll_wait]
+                mov rdx, error_epoll_wait_len
+                print_literal error_epoll_wait, error_epoll_wait_len
+                jmp end
 
-                    cmp r13, qword [timer_fd]
-                    je timer_event
+event_loop:     cmp r12, 0                                                  ; Handles requests back to front. This introduces a bias towards later events per batch, but it's equally unfair
+                je epoll_wait
 
-                    jmp client_event
+event_handler:  dec r12
+                mov rax, Epoll_event_size
+                mul r12
+                mov r13, qword [epoll_return + rax + 4]
+                mov r14d, dword [epoll_return + rax]
+                cmp r13, qword [listener_fd]
+                je listener_event
 
-end:                mov rax, 60
-                    mov rdi, 0
-                    syscall
+                cmp r13, qword [timer_fd]
+                je timer_event
+
+                jmp client_event
+
+end:            mov rax, 60
+                mov rdi, 0
+                syscall

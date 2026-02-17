@@ -86,7 +86,7 @@ mime_lookup:            cmp r15, mime_table_len
                         lea rsi, [final_path]
                         add rsi, qword [file_extension_offset]
                         mov rcx, qword [final_path_len]
-                        sub rcx, file_extension_offset
+                        sub rcx, qword [file_extension_offset]
                         cmovl rcx, qword [mime_table + rax + Extension_link.extension + Iovec.iov_len]                                  ; Works under the assumption that the cpu supports conditional move
                         repe cmpsb
 
@@ -184,7 +184,6 @@ sendfile_loop:          mov rax, 40
                         cmp rax, 0
                         jl sendfile_error
                         je uncork
-                        add qword [r13 + Client.res_file_sent], rax
                         jmp sendfile_loop
 
 
@@ -206,7 +205,8 @@ file_cls:               mov rax, 3
                         mov rdi, qword [r13 + Client.req_file_fd]
                         syscall
 
-                        xor qword [r13 + Client.flags], SENDING_FILE
+                        mov rdi, r13
+                        call conn_close
 
                         jmp event_loop
 

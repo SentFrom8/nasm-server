@@ -16,6 +16,7 @@ void enclose_text(std::string text){
 
 int main(){
 	std::cout << "Size of size_t: " << sizeof(std::size_t) << '\n';
+	std::cout << "Size of off_t: " << sizeof(off_t) << '\n';
 	std::cout << "Size of unshare flags: " << sizeof(CLONE_FILES) << '\n';
 
 	enclose_text("sys_unshare");

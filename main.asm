@@ -117,6 +117,9 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigi
 ; the connection header should be handled
 ; the expired timer must be read
 ; writev is not suitable for headers, a single string must be constructed
+; responses should be sent without connection: close, and upon sending the flags should be cleared so that the socket can be used again
+; mime lookup should use binary search
+; needs caching
 
 _start:         xor r13, r13
 

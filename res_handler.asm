@@ -1,4 +1,5 @@
 %include "defines.inc"
+%include "socket_defines.inc"
 %include "macros.inc"
 
 section .bss
@@ -20,6 +21,15 @@ section .rodata
 %include "mime_table.inc"
 
 mime_table_len equ ($ - mime_table) / Extension_link_size
+
+error_invalid_file db "[ERROR] Resource not found", 10
+error_invalid_file_len equ $ - error_invalid_file
+
+error_read_failed db "[ERROR] Unable to read the requested file"
+error_read_failed_len equ $ - error_read_failed
+
+error_write db "[ERROR] Write failed", 10
+error_write_len equ $ - error_write
 
 section .data
 
@@ -46,17 +56,6 @@ line_break_len equ $ - line_break
 
 optval_cork dd 1
 optval_uncork dd 0
-
-optval_sendbuff dd 1024 * 16
-
-error_invalid_file db "[ERROR] Resource not found", 10
-error_invalid_file_len equ $ - error_invalid_file
-
-error_read_failed db "[ERROR] Unable to read the requested file"
-error_read_failed_len equ $ - error_read_failed
-
-error_write db "[ERROR] Write failed", 10
-error_write_len equ $ - error_write
 
 section .text
 global handle_res
@@ -147,19 +146,11 @@ content_len:            lea r15, [content_len_header]
 
 cork:                   mov rax, 54
                         mov rdi, qword [r13 + Client.fd]
-                        mov rsi, 6
-                        mov rdx, 3
+                        mov rsi, IPPROTO_TCP
+                        mov rdx, TCP_CORK
                         lea r10, [optval_cork]
                         mov r8, 4
                         syscall                                                                         ; sys_setsockopt -> sets the TCP_CORK option to 1 where level is IPPROTO_TCP(6) and optname is TCP_CORK(3)
-
-; limit_buff:                    mov rax, 54
-;                                mov rdi, r13
-;                                mov rsi, 1
-;                                mov rdx, 7
-;                                lea r10, [optval_sendbuff]
-;                                mov r8, 4
-;                                syscall                                 ; Testing only! Sets the SO_SNDBUF option to 16kb where level is SOL_SOCKET(1) and optname is SO_SNDBUF(7)
 
 writev:                 mov rax, 20
                         lea rsi, [headers_iovec]
@@ -190,13 +181,11 @@ sendfile_loop:          mov rax, 40
 sendfile_error:         cmp rax, -11
                         je event_loop
 
-                        mov rdi, r13
-                        call conn_close
                         jmp file_cls
 
 uncork:                 mov rax, 54
-                        mov rsi, 6
-                        mov rdx, 3
+                        mov rsi, IPPROTO_TCP
+                        mov rdx, TCP_CORK
                         lea r10, [optval_uncork]
                         mov r8, 4
                         syscall

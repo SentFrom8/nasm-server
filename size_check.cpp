@@ -8,6 +8,9 @@
 #include <sys/timerfd.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
 
 void enclose_text(std::string text){
 	std::cout << '\n' << std::string(30, '=') << '\n' << text << '\n' << std::string(30, '=') << '\n';
@@ -44,7 +47,11 @@ int main(){
 	enclose_text("sys_socket");
 	std::cout << "Value of SOCK_STREAM: " << SOCK_STREAM << '\n';
 	std::cout << "Value of SOCK_NONBLOCK: " << SOCK_NONBLOCK << '\n';
-	std::cout << "Value of SOCK_NONBLOCK: " << SOCK_NONBLOCK << '\n';
+	std::cout << "Value of SOL_SOCKET: " << SOL_SOCKET << '\n';
+	std::cout << "Value of SO_REUSEADDR: " << SO_REUSEADDR << '\n';
+	std::cout << "Value of SO_KEEPALIVE: " << SO_KEEPALIVE << '\n';
+	std::cout << "Value of IPPROTO_TCP: " << IPPROTO_TCP << '\n';
+	std::cout << "Value of TCP_CORK: " << TCP_CORK << '\n';
 
 	enclose_text("sys_epoll");
 	std::cout << "Value of EPOLLIN: " << EPOLLIN << '\n';

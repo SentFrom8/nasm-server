@@ -36,6 +36,8 @@ timer_fd resq 1
 
 section .rodata
 
+optval_reuseaddr dd 1
+
 setgroups db "/proc/self/setgroups", 0
 uid_map db "/proc/self/uid_map", 0
 gid_map db "/proc/self/gid_map", 0
@@ -47,13 +49,23 @@ pipe_action:
                 at .sa_restorer, dq restorer
         iend
 
-int_action:
-        istruc Sigaction
-                at .sa_function, dq sigint
-                at .sa_flags, dq SA_RESTORER
-                at .sa_restorer, dq restorer
-        iend
+server_listening db "[SERVER] Listening on 0.0.0.0:8080", 10
+server_listening_len equ $ - server_listening
 
+error_socket db "[ERROR] Unable to create a socket", 10
+error_socket_len equ $ - error_socket
+
+error_bind db "[ERROR] Unable to bind socket to 0.0.0.0:8080", 10
+error_bind_len equ $ - error_bind
+
+error_listener_epoll db "[ERROR] Unable to add socket the listening to the epoll watch list", 10
+error_listener_epoll_len equ $ - error_listener_epoll
+
+error_epoll_wait db "[ERROR] Epoll wait failed", 10
+error_epoll_wait_len equ $ - error_epoll_wait
+
+warning_sigpipe db "[WARN] Unable to install a SIGPIPE handler. The server will be fragile and will crash on a bad pipe", 10
+warning_sigpipe_len equ $ - warning_sigpipe
 
 section .data
 
@@ -82,20 +94,6 @@ inside_id_str_len equ $ - inside_id_str
 id_map_len_str db " 1", 10
 id_map_len_str_len equ $ - id_map_len_str
 
-server_listening db "[SERVER] Listening on 0.0.0.0:8080", 10
-server_listening_len equ $ - server_listening
-
-error_socket db "[ERROR] Unable to create a socket", 10
-error_socket_len equ $ - error_socket
-
-error_bind db "[ERROR] Unable to bind socket to 0.0.0.0:8080", 10
-error_bind_len equ $ - error_bind
-
-error_listener_epoll db "[ERROR] Unable to add socket the listening to the epoll watch list", 10
-error_listener_epoll_len equ $ - error_listener_epoll
-
-error_epoll_wait db "[ERROR] Epoll wait failed", 10
-error_epoll_wait_len equ $ - error_epoll_wait
 
 section .text
 
@@ -120,6 +118,8 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigi
 ; responses should be sent without connection: close, and upon sending the flags should be cleared so that the socket can be used again
 ; mime lookup should use binary search
 ; needs caching
+; stack hygiene
+; error handling (starting with the jailer)
 
 _start:         xor r13, r13
 
@@ -234,19 +234,15 @@ map_gid:        mov rax, 2
 
                 call jail
 
-set_signals:    mov rax, 13
+set_sigpipe:    mov rax, 13
                 mov rdi, SIGPIPE
                 lea rsi, [pipe_action]
                 xor rdx, rdx
                 mov r10, SIGSET_T_SIZE
                 syscall                                                     ; sys_rt_sigaction -> ignores the SIGPIPE signal so that it can be handled as an error and doesn't crash the server
-
-                mov rax, 13
-                mov rdi, SIGINT
-                lea rsi, [int_action]
-                xor rdx, rdx
-                mov r10, SIGSET_T_SIZE
-                syscall                                                     ; on SIGINT, close the socket and exit
+                cmp rax, 0
+                jge socket
+                print_literal warning_sigpipe, warning_sigpipe_len
 
 socket:         mov rax, 41
                 mov rdi, 2                                                  ; IPv4 family (AF_INET)
@@ -255,20 +251,27 @@ socket:         mov rax, 41
                 xor rdx, rdx                                                ; System picks the protocol (TCP for SOCK_STREAM type)
                 syscall                                                     ; sys_socket -> creates the socket
                 cmp rax, 0                                                  ; if error, print_literal the error and jump to end
-                jge bind
+                jge reuse_addr
                 print_literal error_socket, error_socket_len
                 jmp end
 
-bind:           mov qword [listener_fd], rax
+reuse_addr:     mov qword [listener_fd], rax
+                mov rdi, rax
+                mov rax, 54
+                mov rsi, SOL_SOCKET
+                mov rdx, SO_REUSEADDR
+                lea r10, [optval_reuseaddr]
+                mov r8, 4
+                syscall                                                     ; sys_setsockopt -> sets the SO_REUSEADDR option on the listener socket, so it can reuse an address in a TIME_WAIT state
 
-                xor rbx, rbx                                                ; Zero out rbx because the address is 0.0.0.0
+bind:           xor rbx, rbx                                                ; Zero out rbx because the address is 0.0.0.0
                 mov rbx, 0x901F                                             ; The bind syscall expects big endian, so the order of bytes in the number 8080 is reversed
                 shl rbx, 16                                                 ; Move the port by 16 bits, because the first 16 bits are reserved for the family
                 add rbx, 2                                                  ; Sets the family to AF_INET
                 mov qword [sockaddr], rbx       
                 mov qword [sockaddr + 8], 0                                 ; pads the second qword of the sock_addr struct with zeroes
 
-                mov rdi, rax
+                mov rdi, qword [listener_fd]
                 mov rax, 49
                 lea rsi, [sockaddr]
                 mov rdx, 16

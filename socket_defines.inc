@@ -1,2 +1,8 @@
 %define SOCK_STREAM 1
 %define SOCK_NONBLOCK 2048
+
+%define SOL_SOCKET 1
+%define SO_REUSEADDR 2
+%define SO_KEEPALIVE 9
+%define IPPROTO_TCP 6
+%define TCP_CORK 3

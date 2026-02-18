@@ -106,7 +106,7 @@ invalid_entry:          mov rax, -1
                         ret
 
 
-; Removes the element at index rdi. Does this by swapping the places of the element with the last element in the heap, reducing heap size, then bubbling it up.
+; Removes the element at index rdi. Does this by swapping the places of the element with the last element in the heap, reducing heap size, then bubbling it up
 mh_remove:              cmp rdi, 0
                         jl invalid_entry        
 
@@ -127,7 +127,11 @@ last_element:           dec dword [heap_size]
                         ret
 
 ; bubbles up/down the element at index rdi
-mh_bubble:              cmp rdi, 0
+mh_bubble:              cmp dword [heap_size], 1
+                        jg check_index
+                        ret
+
+check_index:            cmp rdi, 0
                         jl invalid_entry
 
                         mov rsi, qword [heap + rdi*8]

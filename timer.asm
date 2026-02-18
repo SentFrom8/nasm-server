@@ -3,13 +3,26 @@
 section .bss
 %include "structs.inc"
 
+timer_read_buff resq 1
+
+section .rodata
+
+error_timer_read db "[SERVER] Critical! Unable to read the timer event, can't safely proceed", 10
+error_timer_read_len equ $ - error_timer_read
+
+warn_timer_overshoot db "[WARN] Timer expired more than once, consider extending it", 10
+warn_timer_overshoot_len equ $ - warn_timer_overshoot
+
+expired_test db "Timer expired", 10
+expired_test_len equ $ - expired_test
+
 section .data
-itimerspec: times Itimerspec_size db 0 
+itimerspec: times Itimerspec_size db 0
 
 section .text
 %include "macros.inc"
 global update_timer, timer_event, reset_timer
-extern heap, heap_size, timer_fd, conn_close, connection_timer_seconds, event_loop, mh_bubble
+extern heap, heap_size, timer_fd, conn_close, connection_timer_seconds, event_loop, mh_bubble, end
 
 ; If r9 is used, update conn_handler to use push/pop
 
@@ -41,6 +54,26 @@ reset_timer:                get_time r13 + Client.time
                             call update_timer
                             ret
 
-timer_event:                mov rdi, qword [heap]
+timer_event:                print_literal expired_test, expired_test_len
+                            mov rax, 0
+                            mov rdi, qword [timer_fd]
+                            lea rsi, [timer_read_buff]
+                            mov rdx, 8
+                            syscall                                                         ; reads 8 bytes from the timer, the timer returns the number of times it expired
+
+                            cmp rax, 0
+                            jg timer_read
+                            
+                            cmp rax, -11
+                            je event_loop
+
+                            print_literal error_timer_read, error_timer_read_len
+                            jmp end
+
+timer_read:                 cmp qword [timer_read_buff], 1
+                            je connection_expired
+
+                            print_literal warn_timer_overshoot, warn_timer_overshoot_len
+connection_expired:         mov rdi, qword [heap]
                             call conn_close
                             jmp event_loop

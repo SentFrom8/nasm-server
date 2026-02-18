@@ -13,7 +13,7 @@ error_receive_len equ $ - error_receive
 error_req_len db "[ERROR] Request too long", 10
 error_req_len_len equ $ - error_req_len
 
-error_invalid_req db "[ERROR] Invalid request"
+error_invalid_req db "[ERROR] Invalid request", 10
 error_invalid_req_len equ $ - error_invalid_req
 
 req_end db 13, 10, 13, 10

@@ -31,6 +31,9 @@ error_read_failed_len equ $ - error_read_failed
 error_write db "[ERROR] Write failed", 10
 error_write_len equ $ - error_write
 
+timer_extended db "Timer extended", 10
+timer_extended_len equ $ - timer_extended
+
 section .data
 
 file_size_iovec:

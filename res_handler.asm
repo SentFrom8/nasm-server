@@ -59,7 +59,7 @@ optval_uncork dd 0
 
 section .text
 global handle_res
-extern final_path, final_path_len, print, epoll_wait, event_loop, invalid_request, file_extension_offset, stat_buff, i_to_s, handle_file, conn_close
+extern final_path, final_path_len, print, epoll_wait, event_loop, invalid_request, file_extension_offset, stat_buff, i_to_s, handle_file, conn_close, reset_timer
 
 handle_res:             test dword [r13 + Client.flags], READY_FOR_RES
                         jz event_loop
@@ -163,7 +163,8 @@ writev_error:           print_literal error_write, error_write_len
                         call conn_close
                         jmp file_cls
 
-sendfile:               or dword [r13 + Client.flags], SENDING_FILE
+sendfile:               or dword [r13 + Client.flags], %eval(SENDING_FILE | DATA_SENT)
+
 
 prep_args:              mov rdi, qword [r13 + Client.fd]
                         mov r10, qword [stat_buff + Stat.st_size]
@@ -175,13 +176,20 @@ sendfile_loop:          mov rax, 40
                         cmp rax, 0
                         jl sendfile_error
                         je uncork
+                        
+                        or dword [r13 + Client.flags], DATA_SENT
                         jmp sendfile_loop
 
 
 sendfile_error:         cmp rax, -11
-                        je event_loop
+                        jne file_cls
+                        
+                        test dword [r13 + Client.flags], DATA_SENT
+                        jz event_loop
 
-                        jmp file_cls
+                        call reset_timer
+                        xor dword [r13 + Client.flags], DATA_SENT
+                        jmp event_loop
 
 uncork:                 mov rax, 54
                         mov rsi, IPPROTO_TCP

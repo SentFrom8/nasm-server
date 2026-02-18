@@ -19,7 +19,7 @@ struc Client
     .res_total: resq 1
     .time: resb Timespec_size
     .heap_index: resd 1
-    .flags: resd 1                                          ; 1: Request parsed, 4: Sending file, 8: Skip mime lookup, 16: Socket closed
+    .flags: resd 1                                          ; 1: Request parsed, 4: Sending file, 8: Skip mime lookup, 16: data sent, 128: Socket closed
 endstruc
 
 struc Itimerspec

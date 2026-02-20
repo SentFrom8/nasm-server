@@ -6,6 +6,8 @@
 
 %define PATH_MAX 4096
 
+%define LISTEN_BACKLOG 4096
+
 ; Client defines
 %define READY_FOR_RES 1
 %define SENDING_FILE 4

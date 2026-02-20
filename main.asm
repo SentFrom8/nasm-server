@@ -108,7 +108,7 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigi
 ; The server uses an epoll to handle file descriptors
 ; epoll emits an event when an fd is ready for an operation
 
-; Todos: 
+; Todos:
 ; should handle partial requests
 ; Should check nested function and jumps inside functions. Each function must return in all cases
 ; Should return 404 for files not found
@@ -285,7 +285,7 @@ bind:           xor rbx, rbx                                                ; Ze
 
 listen:         mov rax, 50
                 mov rdi, qword [listener_fd]
-                mov rsi, 128
+                mov rsi, LISTEN_BACKLOG
                 syscall                                                     ; sys_listen -> marks the socket as passive, ready to accept connections
                 print_literal server_listening, server_listening_len
 

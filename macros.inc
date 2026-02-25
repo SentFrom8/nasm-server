@@ -21,6 +21,15 @@
                         syscall
 %endmacro
 
+%macro print_iovec      1
+                        lea r10, [%1]
+                        mov rax, 1
+                        mov rdi, 1
+                        mov rsi, qword [r10 + Iovec.iov_base]
+                        mov rdx, qword [r10 + Iovec.iov_len]
+                        syscall
+%endmacro
+
 %macro hex_char_to_num  2
                         cmp al, 0x30
                         jl %2

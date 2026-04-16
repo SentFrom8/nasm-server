@@ -10,5 +10,5 @@
 %define content_length_str "Content-Length: "
 %strlen content_length_len content_length_str
 
-%define newline_str `\n\r`
+%define newline_str `\r\n`
 %strlen newline_len newline_str

@@ -1,5 +1,7 @@
 section .bss
 %include "structs.inc"
+%include "defines.inc"
+
 path_len: resq 1
 
 global file_extension
@@ -30,7 +32,7 @@ section .text
 
 global handle_req, invalid_request
 extern client_cls, handle_res, client_req_buffer, conn_close, reset_timer, \
-       event_loop, client_req_limit, parse_req, parse_route
+       event_loop, parse_req, parse_route
 
 
 handle_req:             mov rax, 0
@@ -38,11 +40,12 @@ handle_req:             mov rax, 0
                         mov r15, qword [r13 + Client.req_len]
                         mov rsi, [r13 + Client.read_buff]
                         add rsi, r15
-                        mov rdx, client_req_limit
+                        mov rdx, MAX_REQUEST_LEN
                         sub rdx, r15
                         cmp rdx, 0
                         je req_len_error
-                        syscall                                                     ; sys_read -> reads the incoming message from the client and writes it into req
+                        syscall                                                     ; sys_read
+
                         cmp rax, 0
                         jg update_client
                         jl read_error

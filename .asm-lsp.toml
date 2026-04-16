@@ -1,0 +1,9 @@
+[[project]]
+path = ""
+version = "0.10.1"
+assembler = "nasm"
+instruction_set = "x86-64"
+
+[project.opts]
+diagnostics = true
+default_diagnostics = true

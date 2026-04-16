@@ -26,9 +26,9 @@ gid_buff: resb MAX_NUM_LEN
 epoll_event: resb Epoll_event_size
 epoll_return: resb Epoll_event_size*248
 
-client_req_limit equ 4096
-clients: resb Client_size * 4096
-client_req_buffer: resb 8192 * client_req_limit
+clients: resb Client_size * MAX_CLIENTS
+client_req_buffer: resb MAX_REQUEST_LEN * MAX_CLIENTS
+res_headers_buff: resb MAX_RESPONSE_HEADERS * MAX_CLIENTS
 
 listener_fd: resq 1
 epoll_fd: resq 1
@@ -98,7 +98,7 @@ id_map_len_str_len equ $ - id_map_len_str
 section .text
 
 global _start, event_loop, epoll_wait, epoll_event, listener_fd, epoll_fd, timer_fd, \
-        clients, client_req_buffer, client_req_limit, connection_timer_seconds, end
+        clients, client_req_buffer, res_headers_buff, connection_timer_seconds, end
 extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigint, restorer
 
 %include "macros.inc"
@@ -120,6 +120,7 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigi
 ; needs caching
 ; stack hygiene
 ; error handling (starting with the jailer)
+; Client should use iovec for the request
 
 _start:         xor r13, r13
 

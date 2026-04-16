@@ -1,3 +1,6 @@
+%use ifunc
+
+%include "defines.inc"
 %include "epoll_defines.inc"
 %include "socket_defines.inc"
 %include "timer_defines.inc"
@@ -21,7 +24,7 @@ error_using_client_len equ $ - error_using_client
 
 section .text
 global listener_event
-extern clients, epoll_fd, event_loop, listener_fd, epoll_event, mh_push, update_timer, client_req_buffer
+extern clients, epoll_fd, event_loop, listener_fd, epoll_event, mh_push, update_timer, client_req_buffer, res_headers_buff
 
 %include "macros.inc"
 
@@ -92,9 +95,14 @@ get_clock_time:     get_time rbx + Client.time
 timer_start:        call update_timer
 
 req_pointer:        mov rax, qword [rbx]
-                    shl rax, 13                             ; multiplies the fd by 4096 to get the pointer to the request buffer
+                    shl rax, %eval(ilog2(MAX_REQUEST_LEN))                             ; multiplies the fd by 4096 to get the pointer to the request buffer
                     lea rax, [client_req_buffer + rax]
                     mov qword [rbx + Client.read_buff], rax
+
+headers_pointer:    mov rax, qword [rbx]
+                    shl rax, %eval(ilog2(MAX_RESPONSE_HEADERS))
+                    lea rax, [res_headers_buff + rax]
+                    mov [rbx + Client.res_headers_iov + Iovec.iov_base], rax
                     jmp accept_loop
 
 accept_error:       cmp rax, -11                            ; EAGAIN/EWOULDBLOCK errno. List of error numbers can be found in /usr/include/asm-generic/errno(-base).h

@@ -69,6 +69,8 @@ req_finished_check:     mov rax, qword [r13 + Client.read_buff]
                         print_addr qword [r13 + Client.read_buff], qword [r13 + Client.req_len]
 
                         call parse_req
+                        cmp rax, 0
+                        jl invalid_request
                         call parse_route
 
                         jmp handle_res

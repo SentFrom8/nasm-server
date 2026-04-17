@@ -8,7 +8,6 @@ section .data
 
 section .text
 global parsed_headers, parse_req
-extern invalid_request
 
 parse_req:              mov rax, qword [r13 + Client.read_buff]
                         xor rdi, rdi
@@ -43,29 +42,32 @@ handle_new_line:        mov qword [parsed_headers + rdi + Iovec.iov_base], rax
                         add rdi, Iovec_size
 
                         cmp rdi, Headers_size
-                        jne invalid_request
+                        jne parse_failed
 
 final_checks:           mov rax, qword [parsed_headers + Headers.method + Iovec.iov_len]
                         cmp rax, MAX_METHOD_LEN
-                        jg invalid_request
+                        jg parse_failed
                         
                         cmp rax, 0
-                        je invalid_request
+                        je parse_failed
 
                         mov rax, qword [parsed_headers + Headers.path + Iovec.iov_len]
                         cmp rax, MAX_PATH_LEN
-                        jg invalid_request
+                        jg parse_failed
 
                         cmp rax, 0
-                        je invalid_request
+                        je parse_failed
 
                         mov rax, qword [parsed_headers + Headers.http_v + Iovec.iov_len]
                         cmp rax, MAX_HTTPV_LEN
-                        jg invalid_request
+                        jg parse_failed
 
                         cmp rax, 0
-                        je invalid_request
+                        je parse_failed
 
                         mov dword [r13 + Client.flags], 1
 
+                        ret
+
+parse_failed:           mov rax, -1
                         ret

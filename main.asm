@@ -110,14 +110,14 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigi
 
 ; Todos:
 ; should handle partial requests
-; Should check nested function and jumps inside functions. Each function must return in all cases
+; Revisit parse_req function, at the very least it should take the request as the parameter
 ; Should return 404 for files not found
 ; the connection header should be handled
-; writev is not suitable for headers, a single string must be constructed
-; responses should be sent without connection: close, and upon sending the flags should be cleared so that the socket can be used again
+; responses should be sent without connection: close, and upon sending,
+; the flags should be cleared so that the socket can be used again
 ; If a connection is closed after the timer has expired, wrong client will be deleted
 ; mime lookup should use binary search
-; needs caching
+; needs caching?
 ; stack hygiene
 ; error handling (starting with the jailer)
 ; Client should use iovec for the request

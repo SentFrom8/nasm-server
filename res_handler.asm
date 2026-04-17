@@ -173,49 +173,6 @@ continue_headers:       call merge_iov
 
                         or dword [r13 + Client.flags], SENDING_HEADERS
 
-
-; mk_iov:               lea r15, [headers]
-;                         mov qword [headers_iov + Iovec.iov_base], r15
-; 
-;                         mov r15, headers_len
-;                         mov qword [headers_iov + Iovec.iov_len], r15
-; 
-;                         test dword [r13 + Client.flags], REQUESTING_INDEX
-;                         jz use_found_mime_type
-; 
-;                         lea r15, index_content_type
-;                         mov qword [headers_iov + Iovec_size + Iovec.iov_base], r15
-; 
-;                         mov r15, index_content_type_len
-;                         mov qword [headers_iov + Iovec_size + Iovec.iov_len], r15
-;                         jmp content_len
-; 
-; use_found_mime_type:    mov r15, qword [mime_type]
-;                         mov rax, qword [r15 + Extension_link.content_type + Iovec.iov_base]
-;                         mov qword [headers_iov + Iovec_size + Iovec.iov_base], rax
-; 
-;                         mov rax, qword [r15 + Extension_link.content_type + Iovec.iov_len]
-;                         mov qword [headers_iov + Iovec_size + Iovec.iov_len], rax
-; 
-; content_len:            lea r15, [content_len_header]
-;                         mov qword [headers_iov + Iovec_size*2 + Iovec.iov_base], r15
-; 
-;                         mov r15, content_len_header_len
-;                         mov qword [headers_iov + Iovec_size*2 + Iovec.iov_len], r15
-; 
-;                         lea r15, [file_size_iov]
-;                         mov rax, qword [r15 + Iovec.iov_base]
-;                         mov qword [headers_iov + Iovec_size*3 + Iovec.iov_base], rax
-; 
-;                         mov rax, qword [r15 + Iovec.iov_len]
-;                         mov qword [headers_iov + Iovec_size*3 + Iovec.iov_len], rax
-; 
-;                         lea r15, [line_break]
-;                         mov qword [headers_iov + Iovec_size*4 + Iovec.iov_base], r15
-; 
-;                         mov r15, line_break_len
-;                         mov qword [headers_iov + Iovec_size*4 + Iovec.iov_len], r15
-
 ; cork:                   mov rax, 54
 ;                         mov rdi, qword [r13 + Client.fd]
 ;                         mov rsi, IPPROTO_TCP

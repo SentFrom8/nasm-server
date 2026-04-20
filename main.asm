@@ -110,8 +110,10 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigi
 
 ; Todos:
 ; should handle partial requests
+; could just scan the whole request buffer after reading it
 ; Revisit parse_req function, at the very least it should take the request as the parameter
-; Should return 404 for files not found
+; The data_sent flag seems a bit weird, should be checked out
+; Consider writing a more robust 404 handler
 ; the connection header should be handled
 ; responses should be sent without connection: close, and upon sending,
 ; the flags should be cleared so that the socket can be used again

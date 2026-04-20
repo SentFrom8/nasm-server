@@ -12,3 +12,6 @@
 
 %define newline_str `\r\n`
 %strlen newline_len newline_str
+
+%define not_found_str `HTTP/1.1 404 Not Found\r\n\r\n`
+%strlen not_found_len not_found_str

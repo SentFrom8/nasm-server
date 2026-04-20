@@ -60,6 +60,14 @@ content_length_iov:
         at .iov_len, dq content_length_len
     iend
 
+not_found db not_found_str
+
+not_found_iov:
+    istruc Iovec
+        at .iov_base, dq not_found
+        at .iov_len, dq not_found_len
+    iend
+
 error_invalid_file db "[ERROR] Resource not found", 10
 error_invalid_file_len equ $ - error_invalid_file
 
@@ -101,6 +109,8 @@ handle_res:             test dword [r13 + Client.flags], READY_FOR_RES
 
                         lea rdi, [final_path]
                         call handle_file
+                        cmp rax, 0
+                        jl error_404
                         mov qword [r13 + Client.req_file_fd], rax
 
                         test dword [r13 + Client.flags], REQUESTING_INDEX
@@ -246,8 +256,15 @@ file_cls:               mov rax, 3
                         mov rdi, qword [r13 + Client.req_file_fd]
                         syscall
 
-                        mov rdi, r13
+res_sent:               mov rdi, r13
                         call conn_close
 
                         jmp event_loop
 
+error_404:              mov rax, 1
+                        mov rdi, qword [r13 + Client.fd]
+                        mov rsi, qword [not_found_iov + Iovec.iov_base]
+                        mov rdx, qword [not_found_iov + Iovec.iov_len]
+                        syscall
+
+                        jmp res_sent

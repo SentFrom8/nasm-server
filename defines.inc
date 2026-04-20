@@ -20,3 +20,6 @@
 %define REQUESTING_INDEX 8
 %define DATA_SENT 16
 %define SOCKET_CLOSED 128
+
+; Errors
+%define RESOURCE_NOT_FOUND 65536

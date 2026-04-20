@@ -80,5 +80,8 @@ is_regular:         cmp r8d, S_IFREG
 return_file:        mov rax, r9
                     ret
 
-not_found:          jmp invalid_request                                     ; 404 should be handled here
+not_found:          or dword [r13 + Client.flags], RESOURCE_NOT_FOUND
+                    mov rax, -1
+                    ret
+                    
 

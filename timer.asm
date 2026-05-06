@@ -74,6 +74,26 @@ timer_read:                 cmp qword [timer_read_buff], 1
                             je connection_expired
 
                             print_literal warn_timer_overshoot, warn_timer_overshoot_len
-connection_expired:         mov rdi, qword [heap]
+
+connection_expired:         cmp dword [heap_size], 0
+                            je event_loop
+
+                            get_time itimerspec
+
+time_syscall:               movdqu xmm0, [itimerspec]
+
+                            mov rdi, qword [heap]
+                            pcmpgtq xmm0, [rdi + Client.time]
+
                             call conn_close
                             jmp event_loop
+
+
+
+
+
+
+
+
+
+

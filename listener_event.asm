@@ -24,7 +24,7 @@ error_using_client_len equ $ - error_using_client
 
 section .text
 global listener_event
-extern clients, epoll_fd, event_loop, listener_fd, epoll_event, mh_push, update_timer, client_req_buffer, res_headers_buff
+extern clients, epoll_fd, event_loop, listener_fd, epoll_event, mh_force_push, update_timer, client_req_buffer, res_headers_buff
 
 %include "macros.inc"
 
@@ -80,7 +80,7 @@ get_clock_time:     get_time rbx + Client.time
                     add qword [rbx + Client.time + Timespec.seconds], SECONDS_PER_CLIENT
 
                     mov rdi, rbx
-                    call mh_push
+                    call mh_force_push
                     cmp rax, 0
                     je timer_start
                     jg req_pointer

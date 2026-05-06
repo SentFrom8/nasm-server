@@ -118,6 +118,8 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigi
 ; responses should be sent without connection: close, and upon sending,
 ; the flags should be cleared so that the socket can be used again
 ; If a connection is closed after the timer has expired, wrong client will be deleted
+; Timer should check the current time before closing a client
+; Should store the time as total nanoseconds, simplifies the logic
 ; mime lookup should use binary search
 ; needs caching?
 ; stack hygiene

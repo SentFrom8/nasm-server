@@ -61,6 +61,7 @@ int main(){
 	std::cout << "Value of EPOLLRDHUP: " << EPOLLRDHUP << '\n';
 
 	enclose_text("sys_timerfd");
+	std::cout << "Value of CLOCK_REALTIME: " << CLOCK_REALTIME << '\n';
 	std::cout << "Value of CLOCK_MONOTONIC: " << CLOCK_MONOTONIC << '\n';
 	std::cout << "Value of TFD_NONBLOCK: " << TFD_NONBLOCK << '\n';
 	std::cout << "Value of TFD_TIMER_ABSTIME: " << TFD_TIMER_ABSTIME << '\n';
@@ -95,6 +96,7 @@ int main(){
 	std::cout << "Offset of st_atim: " << offsetof(struct stat, st_atim) << "\n";
 	std::cout << "Offset of st_mtim: " << offsetof(struct stat, st_mtim) << "\n";
 	std::cout << "Offset of st_ctim: " << offsetof(struct stat, st_ctim) << "\n";
+	std::cout << "Offset of __glibc_reserved: " << offsetof(struct stat, __glibc_reserved) << "\n";
     std::cout << "Size of stat struct: " << sizeof(struct stat) << "\n";
 
 	enclose_text("sigaction struct");

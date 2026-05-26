@@ -11,6 +11,8 @@ section .bss
 usr_sockaddr: resb 16
 upeer_addrlen: resd 1
 
+tmp_time_buff: resb Timespec_size
+
 section .data
 
 error_listener db "[SERVER] CRITICAL ERROR! Listener returned EPOLLERR or EPOLLHUP", 10
@@ -54,11 +56,11 @@ annul_client:       mov r15, rax
                     xor rax, rax
                     rep stosb                               ; zeroes out the client struct
 
-epoll_wlist:        mov qword [rbx], r15
+epoll_wlist:        mov qword [rbx + Client.fd], r15
                     mov rdx, r15
                     mov rdi, qword [epoll_fd]
                     mov rax, 233
-                    mov rsi, 1
+                    mov rsi, EPOLL_CTL_ADD
                     mov r13d, EPOLLIN
                     or r13d, EPOLLOUT
                     or r13d, EPOLLERR
@@ -67,7 +69,7 @@ epoll_wlist:        mov qword [rbx], r15
                     mov dword [epoll_event + Epoll_event.flags], r13d
                     mov qword [epoll_event + Epoll_event.info], rbx
                     lea r10, [epoll_event]
-                    syscall
+                    syscall                                  ; sys_epoll_ctl -> adds the client to the epoll
                     cmp rax, 0
                     jge get_clock_time
                     mov rdi, qword [rbx]
@@ -76,8 +78,12 @@ epoll_wlist:        mov qword [rbx], r15
                     print_literal error_using_client, error_using_client_len
                     jmp accept_loop
 
-get_clock_time:     get_time rbx + Client.time
-                    add qword [rbx + Client.time + Timespec.seconds], SECONDS_PER_CLIENT
+get_clock_time:     get_time tmp_time_buff
+                    mov rax, qword [tmp_time_buff + Timespec.seconds]
+                    add rax, SECONDS_PER_CLIENT
+                    imul rax, 1000000000
+                    add rax, qword [tmp_time_buff + Timespec.nanoseconds]
+                    mov qword [rbx + Client.time], rax
 
                     mov rdi, rbx
                     call mh_force_push
@@ -118,4 +124,3 @@ listener_epollhup:  print_literal error_listener, error_listener_length
                     jmp event_loop
 
 zero_client:        jmp annul_client
-

@@ -35,8 +35,12 @@ update_timer:               cmp dword [heap_size], 0
                             jmp set_time_call
 
 get_client_time:            mov rax, qword [heap]
-                            movdqu xmm0, [rax + Client.time]
-                            movdqu [itimerspec + Itimerspec.value], xmm0
+                            xor rdx, rdx
+                            mov rax, qword [rax + Client.time]
+                            mov rdi, 1000000000
+                            div rdi
+                            mov qword [itimerspec + Itimerspec.value + Timespec.seconds], rax
+                            mov qword [itimerspec + Itimerspec.value + Timespec.nanoseconds], rdx
 
 set_time_call:              mov rax, 286
                             mov rdi, qword [timer_fd]
@@ -47,8 +51,12 @@ set_time_call:              mov rax, 286
                             ret
 
 ; resets the timer of the element *r13 and bubbles it. The syscall clobbers rdi so might as well be r13
-reset_timer:                get_time r13 + Client.time
-                            add qword [r13 + Client.time + Timespec.seconds], SECONDS_PER_CLIENT
+reset_timer:                get_time itimerspec
+                            mov rax, qword [itimerspec + Timespec.seconds]
+                            add rax, SECONDS_PER_CLIENT
+                            imul rax, 1000000000
+                            add rax, qword [itimerspec + Timespec.nanoseconds]
+                            mov qword [r13 + Client.time], rax
                             mov edi, dword [r13 + Client.heap_index]
                             call mh_bubble
                             call update_timer
@@ -79,11 +87,14 @@ connection_expired:         cmp dword [heap_size], 0
                             je event_loop
 
                             get_time itimerspec
-
-time_syscall:               movdqu xmm0, [itimerspec]
+                            mov rax, qword [itimerspec + Timespec.seconds]
+                            imul rax, 1000000000
+                            add rax, qword [itimerspec +  Timespec.nanoseconds]
 
                             mov rdi, qword [heap]
-                            pcmpgtq xmm0, [rdi + Client.time]
+                            cmp rax, qword [rdi + Client.time]                                  ; Checks if the timer of the first client is actually expired. This prevents the case where the timer expires while the client is being closed
+
+                            jl event_loop
 
                             call conn_close
                             jmp event_loop

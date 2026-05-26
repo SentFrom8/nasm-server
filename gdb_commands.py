@@ -31,6 +31,9 @@ def print_client_formatted(client: tuple):
     output.append("endstruc")
     print("\n".join(output))
 
+
+
+
 class PrintClient(gdb.Command):
     def __init__(self):
         super(PrintClient, self).__init__("print_client", gdb.COMMAND_USER)
@@ -38,11 +41,14 @@ class PrintClient(gdb.Command):
     @override
     def invoke(self, argument: str, from_tty: bool) -> None:
         args = gdb.string_to_argv(argument)
-        addr = gdb.parse_and_eval(args[0])
+        if (len(args)):
+            addr = gdb.parse_and_eval(args[0])
+        else:
+            addr = int(gdb.execute("p $r13", to_string=True).split()[-1])
 
         current = gdb.selected_inferior()
-        test = current.read_memory(addr, 80)
-        print_client_formatted(struct.unpack("<qqqqqqqqqii", test))
+        client = current.read_memory(addr, 80)
+        print_client_formatted(struct.unpack("<qqqqqqqqqii", client))
 
 class PrintHeapClients(gdb.Command):
     def __init__(self):
@@ -62,6 +68,29 @@ class PrintHeapClients(gdb.Command):
             print("\n==============================\n")
 
 
+class PrintHeapNodes(gdb.Command):
+    def __init__(self):
+        super(PrintHeapNodes, self).__init__("print_heap_nodes", gdb.COMMAND_USER)
+
+    @override
+    def invoke(self, argument: str, from_tty: bool):
+        args = gdb.string_to_argv(argument)
+        size = int(gdb.execute("p (int)heap_size", to_string=True).split()[-1])
+        current = gdb.selected_inferior()
+
+        heap_addr = int(gdb.execute("info address heap", to_string=True).split()[4], 16)
+
+        nodes = ""
+    
+        for i in range(size):
+            client_addr = int(gdb.execute(f"x/gx {heap_addr + i*8}", to_string=True).split()[-1], 16)
+            nodes += f"{struct.unpack("<qqqqqqqqqii", current.read_memory(client_addr, 80))[8]}, "
+
+        print(nodes[:-2])
+
+
+
 PrintClient()
 PrintHeapClients()
+PrintHeapNodes()
 

@@ -84,7 +84,7 @@ mh_force_push:          mov eax, dword [heap_size]
 ; Removes the element at index rdi. Does this by swapping the places of the element with the last element in the heap, reducing heap size, then bubbling it up.
 mh_remove:              mov eax, dword [heap_size]
                         dec eax
-                        cmp rdi, rax
+                        cmp edi, eax
                         je last_element
                         jg invalid_entry
 
@@ -96,9 +96,11 @@ mh_remove:              mov eax, dword [heap_size]
                         mov qword [heap + rdi*8], rsi
                         mov dword [heap_size], eax
                         call mh_bubble
+                        mov rax, 0
                         ret
 
 last_element:           dec dword [heap_size]
+                        mov rax, 0
                         ret
 
 ; Bubbles the client at index rdi up or down, ensuring the min heap property is preserved

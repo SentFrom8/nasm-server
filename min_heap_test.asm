@@ -4,7 +4,7 @@ section .bss
 client_data_struct: resb Client_size * 4098
 
 section .data
-heap_values: dq 1, 3, 4, 8, 9, 10, 11, 12, 13, 14
+heap_values: dq 1, 3, 4, 8, 9, 10, 11, 12, 13, 14, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20
 heap_values_size equ $ - heap_values
 %assign values_len heap_values_size/8
 
@@ -29,7 +29,7 @@ heap_push_loop:     mov rax, rcx
 remove_first:       mov rdi, 0
                     call mh_remove
 
-remove_last:        mov rdi, values_len - 1
+remove_last:        mov rdi, values_len - 2
                     call mh_remove
 
 remove_middle:      mov rdi, 2
@@ -51,6 +51,50 @@ bubble_up_test:     lea rax, [client_data_struct + %eval(Client_size*9)]
                     mov edi, dword [rax + Client.heap_index]
                     call mh_bubble
 
+remove_loop:        mov rdi, 0
+                    call mh_remove
+
+                    cmp rax, -1
+                    jne remove_loop
+
 exit:               mov rax, 60
                     mov rdi, 0
                     syscall
+
+
+
+
+
+;
+;                                       1
+;                                      / \
+;                                     /   \
+;                                    /     \
+;                                   /       \
+;                                  /         \
+;                                 /           \
+;                                /             \
+;                               /               \
+;                              /                 \
+;                             /                   \
+;                            /                     \
+;                           /                       \
+;                          /                         \
+;                          3                          4
+;                        / \                         / \
+;                       /   \                       /   \
+;                      /     \                     /     \
+;                     /       \                   /       \
+;                    /         \                 /         \
+;                   /           \               /           \
+;                   8            9             10            11
+;                  / \          / \           / \           / \
+;                 /   \        /   \         /   \         /   \
+;                /     \      /     \       /     \       /     \
+;               12      13   14      1      1      1      1      1
+;              / \     / \  / \     / \    / \    / 
+;              1  1    1  1 1  1    1  1   1  1   1  
+
+
+
+

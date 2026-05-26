@@ -125,6 +125,8 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigi
 ; stack hygiene
 ; error handling (starting with the jailer)
 ; Client should use iovec for the request
+; Check what zero_client is for
+; Should only listen for EPOLLIN, and later add epollout once request is parsed
 
 _start:         xor r13, r13
 

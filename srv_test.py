@@ -3,19 +3,26 @@ import time
 
 bytes = b""
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# s.connect(("172.232.212.171", 8080))
-s.connect(("127.0.0.1", 8080))
-# s.send(b"GET loremipsum%21%23%2f%2E/////////tt//2/%2Fh%2F%2F.%2e HTTP/1.1\r\n\r\n")
-s.send(b"GET /mona_lisa.jpg HTTP/1.1\r\n\r\n")
-#s.send(b"a"*4000 + b"\r\n\r\n")
-for _ in range(10):
-    print(s.recv(10))
-    time.sleep(5)
-#while (message := s.recv(100000000)):
-#    bytes += message
+sockets = []
 
-#print(bytes)
+for _ in range(1):
+    sockets.append(socket.socket(socket.AF_INET, socket.SOCK_STREAM))
+    # s.connect(("172.232.212.171", 8080))
+    sockets[-1].connect(("127.0.0.1", 8080))
+    # s.send(b"GET loremipsum%21%23%2f%2E/////////tt//2/%2Fh%2F%2F.%2e HTTP/1.1\r\n\r\n")
+    sockets[-1].send(b"GET /mona_lisa.jpg HTTP/1.1\r\n\r\n")
+    #s.send(b"a"*4000 + b"\r\n\r\n")
+    
+    #while (message := sockets[i].recv(1000000)):
+    #    pass
+    #    bytes += message
+    
+    #print(bytes)
+    
+for _ in range(15):
+    for s in sockets:
+        s.recv(1000000)
+        time.sleep(10)
 
-
-s.close()
+for s in sockets:
+    s.close()

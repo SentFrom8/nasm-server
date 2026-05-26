@@ -60,6 +60,8 @@ struc Stat
     .st_atim:       resb Timespec_size
     .st_mtim:       resb Timespec_size
     .st_ctim:       resb Timespec_size
+
+    .unused:        resb 24
 endstruc
 
 struc Sigaction

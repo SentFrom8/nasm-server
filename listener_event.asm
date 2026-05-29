@@ -80,7 +80,7 @@ epoll_wlist:        mov qword [rbx + Client.fd], r15
 
 get_clock_time:     get_time tmp_time_buff
                     mov rax, qword [tmp_time_buff + Timespec.seconds]
-                    add rax, SECONDS_PER_CLIENT
+                    add rax, SECONDS_PER_CLIENT_INIT
                     imul rax, 1000000000
                     add rax, qword [tmp_time_buff + Timespec.nanoseconds]
                     mov qword [rbx + Client.time], rax

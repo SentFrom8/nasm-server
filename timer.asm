@@ -53,7 +53,7 @@ set_time_call:              mov rax, 286
 ; resets the timer of the element *r13 and bubbles it. The syscall clobbers rdi so might as well be r13
 reset_timer:                get_time itimerspec
                             mov rax, qword [itimerspec + Timespec.seconds]
-                            add rax, SECONDS_PER_CLIENT
+                            add rax, SECONDS_PER_CLIENT_EXTEND
                             imul rax, 1000000000
                             add rax, qword [itimerspec + Timespec.nanoseconds]
                             mov qword [r13 + Client.time], rax

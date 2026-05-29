@@ -113,19 +113,14 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigi
 ; could just scan the whole request buffer after reading it
 ; Revisit parse_req function, at the very least it should take the request as the parameter
 ; The data_sent flag seems a bit weird, should be checked out
-; Consider writing a more robust 404 handler
 ; the connection header should be handled
 ; responses should be sent without connection: close, and upon sending,
 ; the flags should be cleared so that the socket can be used again
-; If a connection is closed after the timer has expired, wrong client will be deleted
-; Timer should check the current time before closing a client
-; Should store the time as total nanoseconds, simplifies the logic
 ; mime lookup should use binary search
 ; needs caching?
 ; stack hygiene
 ; error handling (starting with the jailer)
 ; Client should use iovec for the request
-; Check what zero_client is for
 ; Should only listen for EPOLLIN, and later add epollout once request is parsed
 
 _start:         xor r13, r13

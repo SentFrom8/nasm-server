@@ -122,6 +122,7 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigi
 ; error handling (starting with the jailer)
 ; Client should use iovec for the request
 ; Should only listen for EPOLLIN, and later add epollout once request is parsed
+; The image gets sent with some weird lines
 
 _start:         xor r13, r13
 

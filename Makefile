@@ -1,6 +1,5 @@
-ASM = nasm
-LD = ld
-ASMFLAGS = -g -felf64
+BUILD_DIR ?= ./build
+INCLUDES_DIR ?= ./includes
 OBJS = 	main.o \
 	listener_event.o \
 	client_event.o \
@@ -15,15 +14,20 @@ OBJS = 	main.o \
 	jailer.o \
 	file_handler.o \
 	signal_handler.o \
+
 TARGET = server
 
-all: $(TARGET)
+all: $(BUILD_DIR)/$(TARGET)
 
-$(TARGET): $(OBJS)
-	$(LD) -o $@ $^
 
-%.o: %.asm
-	$(ASM) $(ASMFLAGS) $<
+$(BUILD_DIR)/$(TARGET): $(foreach obj, $(OBJS), $(BUILD_DIR)/$(obj))
+	ld -o $@ $^
+
+$(BUILD_DIR)/%.o: %.asm $(BUILD_DIR) $(INCLUDES_DIR)
+	nasm -felf64 -g -i $(INCLUDES_DIR) -o $@ $<
+
+$(BUILD_DIR):
+	mkdir -p $@
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -rf $(BUILD_DIR)

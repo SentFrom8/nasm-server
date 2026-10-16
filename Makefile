@@ -14,6 +14,7 @@ OBJS = 	main.o \
 	jailer.o \
 	file_handler.o \
 	signal_handler.o \
+	mime_search.o \
 
 TARGET = server
 

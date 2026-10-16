@@ -39,7 +39,7 @@ struc Headers
     .http_v: resb Iovec_size
 endstruc
 
-struc Extension_link
+struc Extension_link                                        ; Size must be a power of 2
     .extension: resb Iovec_size
     .content_type: resb Iovec_size
 endstruc

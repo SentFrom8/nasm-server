@@ -116,13 +116,13 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigi
 ; the connection header should be handled
 ; responses should be sent without connection: close, and upon sending,
 ; the flags should be cleared so that the socket can be used again
-; mime lookup should use binary search
 ; needs caching?
 ; stack hygiene
 ; error handling (starting with the jailer)
 ; Client should use iovec for the request
 ; Should only listen for EPOLLIN, and later add epollout once request is parsed
 ; The image gets sent with some weird lines
+; binary search has a bug
 
 _start:         xor r13, r13
 

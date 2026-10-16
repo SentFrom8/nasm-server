@@ -96,7 +96,7 @@ section .text
 
 global handle_res
 extern final_path, final_path_len, print, epoll_wait, event_loop, invalid_request, file_extension_offset, stat_buff, \
-i_to_s, handle_file, conn_close, reset_timer, res_headers_buff, merge_iov
+i_to_s, handle_file, conn_close, reset_timer, res_headers_buff, merge_iov, search_mime
 
 handle_res:             test dword [r13 + Client.flags], READY_FOR_RES
                         jz event_loop
@@ -116,27 +116,12 @@ handle_res:             test dword [r13 + Client.flags], READY_FOR_RES
                         test dword [r13 + Client.flags], REQUESTING_INDEX
                         jnz file_size_str
 
-                        xor r15, r15
-                        xor rdx, rdx
 
-mime_lookup:            cmp r15, mime_table_len
-                        jge invalid_request
-                        mov rax, r15
-                        imul rax, Extension_link_size
-                        mov rdi, qword [mime_table + rax + Extension_link.extension + Iovec.iov_base]
-                        lea rsi, [final_path]
-                        add rsi, qword [file_extension_offset]
-                        mov rcx, qword [final_path_len]
-                        sub rcx, qword [file_extension_offset]
-                        cmovl rcx, qword [mime_table + rax + Extension_link.extension + Iovec.iov_len]                                  ; Works under the assumption that the cpu supports conditional move
-                        repe cmpsb
+mime_lookup:            call search_mime
+                        cmp rax, -1
+                        je invalid_request
 
-                        je save_mime_type
-                        inc r15
-                        jmp mime_lookup
-
-save_mime_type:         lea r15, [mime_table + rax]
-                        mov qword [mime_type], r15
+                        mov qword [mime_type], rax
 
 file_size_str:          mov edi, dword [stat_buff + Stat.st_size]
                         lea rsi, [file_size_str_buff]

@@ -1,0 +1,299 @@
+%line 10+1 res_handler.asm
+[section .bss]
+
+
+digits_str_buff: resb 10
+digits_buffer_len: resq 1
+
+file_size_str_buff: resb MAX_NUM_LEN
+
+mime_type: resq 1
+
+headers_iov: resb Iovec_size*5
+
+file_offset_buff: resq 1
+
+[section .rodata]
+
+
+
+mime_table_len equ ($ - mime_table) / Extension_link_size
+
+index_content_type db "text/html"
+index_content_type_len equ $ - index_content_type
+
+index_content_type_iov:
+..@3.strucstart:
+times (Iovec.iov_base-Iovec)-($-..@3.strucstart) db 0
+%line 35+0 res_handler.asm
+dq index_content_type
+%line 36+1 res_handler.asm
+times (Iovec.iov_len-Iovec)-($-..@3.strucstart) db 0
+%line 36+0 res_handler.asm
+dq index_content_type_len
+%line 37+1 res_handler.asm
+times Iovec_size-($-..@3.strucstart) db 0
+
+headers_beginning db headers_beginning_str
+
+headers_beginning_iov:
+..@8.strucstart:
+times (Iovec.iov_base-Iovec)-($-..@8.strucstart) db 0
+%line 43+0 res_handler.asm
+dq headers_beginning
+%line 44+1 res_handler.asm
+times (Iovec.iov_len-Iovec)-($-..@8.strucstart) db 0
+%line 44+0 res_handler.asm
+dq headers_beginning_len
+%line 45+1 res_handler.asm
+times Iovec_size-($-..@8.strucstart) db 0
+
+newline db newline_str
+
+newline_iov:
+..@13.strucstart:
+times (Iovec.iov_base-Iovec)-($-..@13.strucstart) db 0
+%line 51+0 res_handler.asm
+dq newline
+%line 52+1 res_handler.asm
+times (Iovec.iov_len-Iovec)-($-..@13.strucstart) db 0
+%line 52+0 res_handler.asm
+dq newline_len
+%line 53+1 res_handler.asm
+times Iovec_size-($-..@13.strucstart) db 0
+
+content_length db content_length_str
+
+content_length_iov:
+..@18.strucstart:
+times (Iovec.iov_base-Iovec)-($-..@18.strucstart) db 0
+%line 59+0 res_handler.asm
+dq content_length
+%line 60+1 res_handler.asm
+times (Iovec.iov_len-Iovec)-($-..@18.strucstart) db 0
+%line 60+0 res_handler.asm
+dq content_length_len
+%line 61+1 res_handler.asm
+times Iovec_size-($-..@18.strucstart) db 0
+
+not_found db not_found_str
+
+not_found_iov:
+..@23.strucstart:
+times (Iovec.iov_base-Iovec)-($-..@23.strucstart) db 0
+%line 67+0 res_handler.asm
+dq not_found
+%line 68+1 res_handler.asm
+times (Iovec.iov_len-Iovec)-($-..@23.strucstart) db 0
+%line 68+0 res_handler.asm
+dq not_found_len
+%line 69+1 res_handler.asm
+times Iovec_size-($-..@23.strucstart) db 0
+
+error_invalid_file db "[ERROR] Resource not found", 10
+error_invalid_file_len equ $ - error_invalid_file
+
+error_read_failed db "[ERROR] Unable to read the requested file"
+error_read_failed_len equ $ - error_read_failed
+
+error_write db "[ERROR] Write failed", 10
+error_write_len equ $ - error_write
+
+timer_extended db "Timer extended", 10
+timer_extended_len equ $ - timer_extended
+
+[section .data]
+
+file_size_iov:
+..@29.strucstart:
+times (Iovec.iov_base-Iovec)-($-..@29.strucstart) db 0
+%line 87+0 res_handler.asm
+dq file_size_str_buff
+%line 88+1 res_handler.asm
+times (Iovec.iov_len-Iovec)-($-..@29.strucstart) db 0
+%line 88+0 res_handler.asm
+dq 0
+%line 89+1 res_handler.asm
+times Iovec_size-($-..@29.strucstart) db 0
+
+
+optval_cork dd 1
+optval_uncork dd 0
+
+[section .text]
+
+[global handle_res]
+[extern final_path]
+%line 98+0 res_handler.asm
+[extern final_path_len]
+[extern print]
+[extern epoll_wait]
+[extern event_loop]
+[extern invalid_request]
+[extern file_extension_offset]
+[extern stat_buff]
+[extern i_to_s]
+[extern handle_file]
+[extern conn_close]
+[extern reset_timer]
+[extern res_headers_buff]
+[extern merge_iov]
+[extern search_mime]
+%line 100+0 res_handler.asm
+
+%line 101+1 res_handler.asm
+handle_res: test dword [r13 + Client.flags], READY_FOR_RES
+ jz event_loop
+
+ test dword [r13 + Client.flags], SENDING_HEADERS
+ jnz send_headers
+
+ test dword [r13 + Client.flags], SENDING_FILE
+ jnz prep_args
+
+ lea rdi, [final_path]
+ call handle_file
+ cmp rax, 0
+ jl error_404
+ mov qword [r13 + Client.req_file_fd], rax
+
+ test dword [r13 + Client.flags], REQUESTING_INDEX
+ jnz file_size_str
+
+
+mime_lookup: call search_mime
+ cmp rax, -1
+ je invalid_request
+
+ mov qword [mime_type], rax
+
+file_size_str: mov edi, dword [stat_buff + Stat.st_size]
+ lea rsi, [file_size_str_buff]
+ mov qword [file_size_iov + Iovec.iov_base], rsi
+ lea rsi, [file_size_iov]
+ call i_to_s
+
+build_headers: lea rdi, [r13 + Client.res_headers_iov]
+ lea rsi, [headers_beginning_iov]
+ call merge_iov
+
+ lea rdi, [r13 + Client.res_headers_iov]
+
+ test dword [r13 + Client.flags], REQUESTING_INDEX
+ jz use_found_mime_type
+
+ lea rsi, [index_content_type_iov]
+ jmp continue_headers
+
+use_found_mime_type: mov rsi, qword [mime_type]
+ lea rsi, [rsi + Extension_link.content_type]
+
+continue_headers: call merge_iov
+
+ lea rdi, [r13 + Client.res_headers_iov]
+ lea rsi, [newline_iov]
+ call merge_iov
+
+ lea rdi, [r13 + Client.res_headers_iov]
+ lea rsi, [content_length_iov]
+ call merge_iov
+
+ lea rdi, [r13 + Client.res_headers_iov]
+ lea rsi, [file_size_iov]
+ call merge_iov
+
+ lea rdi, [r13 + Client.res_headers_iov]
+ lea rsi, [newline_iov]
+ call merge_iov
+
+ lea rdi, [r13 + Client.res_headers_iov]
+ lea rsi, [newline_iov]
+ call merge_iov
+
+ or dword [r13 + Client.flags], SENDING_HEADERS
+
+
+
+
+
+
+
+
+
+send_headers: mov rax, 1
+ mov rdi, qword [r13 + Client.fd]
+ mov rsi, qword [r13 + Client.res_headers_iov + Iovec.iov_base]
+ add rsi, qword [r13 + Client.res_headers_sent]
+ mov rdx, qword [r13 + Client.res_headers_iov + Iovec.iov_len]
+ syscall
+ cmp rax, 0
+ jge sendfile
+
+ cmp rax, -11
+ jne write_error
+
+ jmp event_loop
+
+write_error: print_literal error_write, error_write_len
+ mov rdi, r13
+ call conn_close
+ jmp file_cls
+
+sendfile: or dword [r13 + Client.flags], 
+ add rax, qword [r13 + Client.res_headers_sent]
+ mov qword [r13 + Client.res_headers_sent], rax
+ cmp rax, qword [r13 + Client.res_headers_iov + Iovec.iov_len]
+ jge prep_args
+
+ call reset_timer
+ jmp event_loop
+
+
+prep_args: and qword [r13 + Client.flags], ~SENDING_HEADERS
+ mov rdi, qword [r13 + Client.fd]
+ mov r10, qword [stat_buff + Stat.st_size]
+ mov rsi, qword [r13 + Client.req_file_fd]
+ lea rdx, [r13 + Client.res_file_sent]
+
+sendfile_loop: mov rax, 40
+ syscall
+ cmp rax, 0
+ jl sendfile_error
+ je file_cls
+
+ or dword [r13 + Client.flags], DATA_SENT
+ jmp sendfile_loop
+
+sendfile_error: cmp rax, -11
+ jne file_cls
+
+ test dword [r13 + Client.flags], DATA_SENT
+ jz event_loop
+
+ call reset_timer
+ xor dword [r13 + Client.flags], DATA_SENT
+ jmp event_loop
+
+
+
+
+
+
+
+
+file_cls: mov rax, 3
+ mov rdi, qword [r13 + Client.req_file_fd]
+ syscall
+
+res_sent: mov rdi, r13
+ call conn_close
+
+ jmp event_loop
+
+error_404: mov rax, 1
+ mov rdi, qword [r13 + Client.fd]
+ mov rsi, qword [not_found_iov + Iovec.iov_base]
+ mov rdx, qword [not_found_iov + Iovec.iov_len]
+ syscall
+
+ jmp res_sent

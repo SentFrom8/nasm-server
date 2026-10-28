@@ -181,7 +181,7 @@ send_headers:           mov rax, 1
                         mov rsi, qword [r13 + Client.res_headers_iov + Iovec.iov_base]
                         add rsi, qword [r13 + Client.res_headers_sent]
                         mov rdx, qword [r13 + Client.res_headers_iov + Iovec.iov_len]
-                        syscall                                 ; sys_writev -> writes an array of buffers (I/O vector)
+                        syscall
                         cmp rax, 0
                         jge sendfile
 
@@ -205,7 +205,7 @@ sendfile:               or dword [r13 + Client.flags], %eval(SENDING_FILE | DATA
                         jmp event_loop
 
 
-prep_args:              xor qword [r13 + Client.flags], SENDING_HEADERS
+prep_args:              and qword [r13 + Client.flags], ~SENDING_HEADERS
                         mov rdi, qword [r13 + Client.fd]
                         mov r10, qword [stat_buff + Stat.st_size]
                         mov rsi, qword [r13 + Client.req_file_fd]

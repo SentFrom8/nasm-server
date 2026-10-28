@@ -121,8 +121,7 @@ extern handle_req, listener_event, timer_event, client_event, i_to_s, jail, sigi
 ; error handling (starting with the jailer)
 ; Client should use iovec for the request
 ; Should only listen for EPOLLIN, and later add epollout once request is parsed
-; The image gets sent with some weird lines
-; binary search has a bug
+; Look into the header loop, it should use the same logic as the sendfile loop (send until EAGAIN, reset timer once done)
 
 _start:         xor r13, r13
 
@@ -333,7 +332,7 @@ epoll_wait:     mov rax, 232
                 mov rdi, qword [epoll_fd]
                 lea rsi, [epoll_return]                                     ; buffer for events
                 mov rdx, 248                                                ; max simultaneous connections, not total
-                mov r10, 60000                                              ; timeout, set to -1 for permanent
+                mov r10, -1                                                 ; timeout, set to -1 for permanent
                 syscall
                 mov r12, rax                                                ; sys_epoll_wait -> Blocks the thread until there is an EPOLLIN connection or the timeout expires
                 cmp r12, 0
